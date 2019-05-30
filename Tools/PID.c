@@ -5,7 +5,6 @@ void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable
 	pidDevice->params = params;
 	pidDevice->enable = enable;
 
-	pidDevice->ref = 0;
 	pidDevice->error = 0;
 	pidDevice->output = 0;
 
@@ -15,34 +14,35 @@ void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable
 	pidDevice->enable = enable;
 }
 
-void PID_CloseLoop(PID_Handler_t *pidDevice, double measure)
+void PID_CloseLoop(PID_Handler_t *pidDevice, float reference, float measure)
 {
 	if(pidDevice->enable != PID_STATUS_ENABLE)
 	{
 		pidDevice->lastMeasure = measure;
+		pidDevice->output = reference;
 		return;
 	}
-
-	double error = pidDevice->ref - measure;
+	pidDevice->ref = reference;
+	pidDevice->error = pidDevice->ref - measure;
 
 	pidDevice->integral += pidDevice->error * pidDevice->params.Ki;
-	if (pidDevice->integral > pidDevice->outputMax)
-		pidDevice->integral = pidDevice->outputMax;
-	else if (pidDevice->integral < pidDevice->outputMin)
-		pidDevice->integral = pidDevice->outputMin;
+	if (pidDevice->integral > pidDevice->params.outputMax)
+		pidDevice->integral = pidDevice->params.outputMax;
+	else if (pidDevice->integral < pidDevice->params.outputMin)
+		pidDevice->integral = pidDevice->params.outputMin;
 
-	double measDiff = measure - pidDevice->lastMeasure;
+	float measDiff = measure - pidDevice->lastMeasure;
 		
 	pidDevice->output = pidDevice->error * pidDevice->params.Kp + pidDevice->integral + measDiff * pidDevice->params.Kd;
-	if (pidDevice->output > pidDevice->outputMax)
-		pidDevice->output = pidDevice->outputMax;
-	else if (pidDevice->output < pidDevice->outputMin)
-		pidDevice->output = pidDevice->outputMin;
+	if (pidDevice->output > pidDevice->params.outputMax)
+		pidDevice->output = pidDevice->params.outputMax;
+	else if (pidDevice->output < pidDevice->params.outputMin)
+		pidDevice->output = pidDevice->params.outputMin;
 
 	pidDevice->lastMeasure = measure;
 }
 
-void PID_UpdateController(PID_Handler_t *pidDevice, double Kp, double Ki, double Kd, double sampleTime)
+void PID_UpdateController(PID_Handler_t *pidDevice, float Kp, float Ki, float Kd, float sampleTime)
 {
 	pidDevice->params.Kp = Kp;
 	pidDevice->params.Ki = Ki * sampleTime;
@@ -51,9 +51,9 @@ void PID_UpdateController(PID_Handler_t *pidDevice, double Kp, double Ki, double
 	pidDevice->params.sampleTime = sampleTime;
 }
 
-void PID_UpdateLimits(PID_Handler_t *pidDevice, double outputMax, double outputMin)
+void PID_UpdateLimits(PID_Handler_t *pidDevice, float outputMax, float outputMin)
 {
-	pidDevice->params.outputMax = outputMaxp;
+	pidDevice->params.outputMax = outputMax;
 	pidDevice->params.outputMin = outputMin;
 }
 

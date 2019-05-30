@@ -10,8 +10,8 @@
 @endverbatim
  */
 
-#ifndef _PID_H_
-#define _PID_H_
+#ifndef _ENCODER_H_
+#define _ENCODER_H_
 
 /* Include proper header file */
 /* STM32F7xx */
@@ -51,44 +51,30 @@
 #endif
 
 #include "stm32f4xx_hal.h"
+#include "math.h"
+
+#define M_PI 3.14159265358979323846
+#define ENCODER_CPR		4 * 2048.0
 
 typedef enum
 {
-	PID_STATUS_DISABLE = 0,
-	PID_STATUS_ENABLE
-} PID_Status_t;
+	ENCODER_STATUS_DISABLE = 0,
+	ENCODER_STATUS_ENABLE
+} Encoder_Status_t;
 
-typedef struct PID_Params
+typedef struct Encoder_Handler
 {
-	float Kp;
-	float Ki;
-	float Kd;
+	volatile uint32_t *count;
+	float oldPos;
 
-	float outputMax;
-	float outputMin;
+	uint8_t overflow;	
+	int16_t resetVal;
 
-	float sampleTime;
-} PID_Params_t;
+	Encoder_Status_t enable;
+} Encoder_Handler_t;
 
-typedef struct PID_Handler
-{
-	PID_Params_t params;
-	
-	float ref;
-	float error;
-	float output;
-
-	float lastMeasure;
-	float integral;
-
-	PID_Status_t enable;
-} PID_Handler_t;
-
-
-void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable);
-void PID_CloseLoop(PID_Handler_t *pidDevice, float reference, float measure);
-void PID_SetController(PID_Handler_t *pidDevice, float Kp, float Ki, float Kd);
-void PID_SetParams(PID_Handler_t *pidDevice, PID_Params_t params);
-void PID_Enable(PID_Handler_t *pidDevice, PID_Status_t enable);
+float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime);
+float mod(float x, float y);
+float AngleNormalize(float a);
 
 #endif

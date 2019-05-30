@@ -90,6 +90,8 @@
 #define MAX5814_SEL_C					0x04
 #define MAX5814_SEL_D					0x08
 
+#define MAX5814_MAX_VAL					1023
+
 typedef struct MAX5814
 {
 	I2C_HandleTypeDef *i2cHandler;
