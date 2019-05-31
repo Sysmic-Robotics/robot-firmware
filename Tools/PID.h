@@ -52,14 +52,18 @@
 
 #include "stm32f4xx_hal.h"
 
-typedef enum
-{
+/**
+ * \brief Enable status of PID
+ */
+typedef enum {
 	PID_STATUS_DISABLE = 0,
 	PID_STATUS_ENABLE
 } PID_Status_t;
 
-typedef struct PID_Params
-{
+/**
+ * \brief Configuration PID parameters
+ */
+typedef struct {
 	float Kp;
 	float Ki;
 	float Kd;
@@ -70,8 +74,10 @@ typedef struct PID_Params
 	float sampleTime;
 } PID_Params_t;
 
-typedef struct PID_Handler
-{
+/**
+ * \brief PID handler for control operation
+ */
+typedef struct {
 	PID_Params_t params;
 	
 	float ref;
@@ -84,11 +90,43 @@ typedef struct PID_Handler
 	PID_Status_t enable;
 } PID_Handler_t;
 
-
+/**
+ * \brief PID initialization
+ * \param pidDevice: Struct that store PID operation info
+ * \param params: Struct that contains PID configuration parameters
+ * \param enable: Enable status of PID
+ */
 void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable);
+
+/**
+ * \brief Execute a close loop operation
+ * \param pidDevice: Struct that store PID operation info
+ * \param reference: Reference set to PID controller
+ * \param measure: Feedback used to compute error
+ */
 void PID_CloseLoop(PID_Handler_t *pidDevice, float reference, float measure);
+
+/**
+ * \brief Set PID parameters
+ * \param pidDevice: Struct that store PID operation info
+ * \param Kp: Proportional gain
+ * \param Ki: Integral gain
+ * \param Kd: Derivative gain
+ */
 void PID_SetController(PID_Handler_t *pidDevice, float Kp, float Ki, float Kd);
+
+/**
+ * \brief Set parameters from struct
+ * \param pidDevice: Struct that store PID operation info
+ * \param params: Struct with PID configuration parameters
+ */
 void PID_SetParams(PID_Handler_t *pidDevice, PID_Params_t params);
+
+/**
+ * \brief Enable or disable PID
+ * \param pidDevice: Struct that store PID operation info
+ * \param enable: PID set status
+ */
 void PID_Enable(PID_Handler_t *pidDevice, PID_Status_t enable);
 
 #endif

@@ -1,12 +1,22 @@
-#ifndef __NRF24_H
-#define __NRF24_H
+/**
+ * @author  Pablo Reyes Robles
+ * @email   pablo.reyesr@alumnos.usm.cl
+ * @version v1.0
+@verbatim
+   ----------------------------------------------------------------------
+   Created by LonelyWolf. https://github.com/LonelyWolf/stm32
+   Mod by Sysmic Robotics, 2019
+   ----------------------------------------------------------------------
+@endverbatim
+ */
 
+#ifndef __NRF24_H__
+#define __NRF24_H__
 
-// Low level functions (hardware depended)
+/* Low level functions (hardware depended) */
 #include "nrf24_hal.h"
 
-
-// nRF24L0 instruction definitions
+/* nRF24L0 instruction definitions */
 #define nRF24_CMD_R_REGISTER       (uint8_t)0x00 // Register read
 #define nRF24_CMD_W_REGISTER       (uint8_t)0x20 // Register write
 #define nRF24_CMD_R_RX_PAYLOAD     (uint8_t)0x61 // Read RX payload
@@ -17,7 +27,7 @@
 #define nRF24_CMD_LOCK_UNLOCK      (uint8_t)0x50 // Lock/unlock exclusive features
 #define nRF24_CMD_NOP              (uint8_t)0xFF // No operation (used for reading status register)
 
-// nRF24L0 register definitions
+/* nRF24L0 register definitions */
 #define nRF24_REG_CONFIG           (uint8_t)0x00 // Configuration register
 #define nRF24_REG_EN_AA            (uint8_t)0x01 // Enable "Auto acknowledgment"
 #define nRF24_REG_EN_RXADDR        (uint8_t)0x02 // Enable RX addresses
@@ -45,14 +55,14 @@
 #define nRF24_REG_DYNPD            (uint8_t)0x1C // Enable dynamic payload length
 #define nRF24_REG_FEATURE          (uint8_t)0x1D // Feature register
 
-// Register bits definitions
+/* Register bits definitions */
 #define nRF24_CONFIG_PRIM_RX       (uint8_t)0x01 // PRIM_RX bit in CONFIG register
 #define nRF24_CONFIG_PWR_UP        (uint8_t)0x02 // PWR_UP bit in CONFIG register
 #define nRF24_FLAG_RX_DR           (uint8_t)0x40 // RX_DR bit (data ready RX FIFO interrupt)
 #define nRF24_FLAG_TX_DS           (uint8_t)0x20 // TX_DS bit (data sent TX FIFO interrupt)
 #define nRF24_FLAG_MAX_RT          (uint8_t)0x10 // MAX_RT bit (maximum number of TX retransmits interrupt)
 
-// Register masks definitions
+/* Register masks definitions */
 #define nRF24_MASK_REG_MAP         (uint8_t)0x1F // Mask bits[4:0] for CMD_RREG and CMD_WREG commands
 #define nRF24_MASK_CRC             (uint8_t)0x0C // Mask for CRC bits [3:2] in CONFIG register
 #define nRF24_MASK_STATUS_IRQ      (uint8_t)0x70 // Mask for all IRQ bits in STATUS register
@@ -68,11 +78,7 @@
 #define nRF24_MASK_PLOS_CNT        (uint8_t)0xF0 // Mask for PLOS_CNT[7:4] bits in OBSERVE_TX register
 #define nRF24_MASK_ARC_CNT         (uint8_t)0x0F // Mask for ARC_CNT[3:0] bits in OBSERVE_TX register
 
-// Fake address to test transceiver presence (5 bytes long)
-#define nRF24_TEST_ADDR            "nRF24"
-
-
-// Retransmit delay
+/* Macros of ARD config in ascent order */
 enum {
 	nRF24_ARD_NONE   = (uint8_t)0x00, // Dummy value for case when retransmission is not used
 	nRF24_ARD_250us  = (uint8_t)0x00,
@@ -93,14 +99,14 @@ enum {
 	nRF24_ARD_4000us = (uint8_t)0x0F
 };
 
-// Data rate
+/* Data rate */
 enum {
 	nRF24_DR_250kbps = (uint8_t)0x20, // 250kbps data rate
 	nRF24_DR_1Mbps   = (uint8_t)0x00, // 1Mbps data rate
 	nRF24_DR_2Mbps   = (uint8_t)0x08  // 2Mbps data rate
 };
 
-// RF output power in TX mode
+/* RF output power in TX mode */
 enum {
 	nRF24_TXPWR_18dBm = (uint8_t)0x00, // -18dBm
 	nRF24_TXPWR_12dBm = (uint8_t)0x02, // -12dBm
@@ -108,26 +114,26 @@ enum {
 	nRF24_TXPWR_0dBm  = (uint8_t)0x06  //   0dBm
 };
 
-// CRC encoding scheme
+/* CRC encoding scheme */
 enum {
 	nRF24_CRC_off   = (uint8_t)0x00, // CRC disabled
 	nRF24_CRC_1byte = (uint8_t)0x08, // 1-byte CRC
 	nRF24_CRC_2byte = (uint8_t)0x0c  // 2-byte CRC
 };
 
-// nRF24L01 power control
+/* nRF24L01 power control */
 enum {
 	nRF24_PWR_UP   = (uint8_t)0x02, // Power up
 	nRF24_PWR_DOWN = (uint8_t)0x00  // Power down
 };
 
-// Transceiver mode
+/* Transceiver mode */
 enum {
 	nRF24_MODE_RX = (uint8_t)0x01, // PRX
 	nRF24_MODE_TX = (uint8_t)0x00  // PTX
 };
 
-// Enumeration of RX pipe addresses and TX address
+/* Enumeration of RX pipe addresses and TX address */
 enum {
 	nRF24_PIPE0  = (uint8_t)0x00, // pipe0
 	nRF24_PIPE1  = (uint8_t)0x01, // pipe1
@@ -138,13 +144,13 @@ enum {
 	nRF24_PIPETX = (uint8_t)0x06  // TX address (not a pipe in fact)
 };
 
-// State of auto acknowledgment for specified pipe
+/* State of auto acknowledgment for specified pipe */
 enum {
 	nRF24_AA_OFF = (uint8_t)0x00,
 	nRF24_AA_ON  = (uint8_t)0x01
 };
 
-// Status of the RX FIFO
+/* Status of the RX FIFO */
 enum {
 	nRF24_STATUS_RXFIFO_DATA  = (uint8_t)0x00, // The RX FIFO contains data and available locations
 	nRF24_STATUS_RXFIFO_EMPTY = (uint8_t)0x01, // The RX FIFO is empty
@@ -152,7 +158,7 @@ enum {
 	nRF24_STATUS_RXFIFO_ERROR = (uint8_t)0x03  // Impossible state: RX FIFO cannot be empty and full at the same time
 };
 
-// Status of the TX FIFO
+/* Status of the TX FIFO */
 enum {
 	nRF24_STATUS_TXFIFO_DATA  = (uint8_t)0x00, // The TX FIFO contains data and available locations
 	nRF24_STATUS_TXFIFO_EMPTY = (uint8_t)0x01, // The TX FIFO is empty
@@ -160,7 +166,7 @@ enum {
 	nRF24_STATUS_TXFIFO_ERROR = (uint8_t)0x03  // Impossible state: TX FIFO cannot be empty and full at the same time
 };
 
-// Result of RX FIFO reading
+/* Result of RX FIFO reading */
 typedef enum {
 	nRF24_RX_PIPE0  = (uint8_t)0x00, // Packet received from the PIPE#0
 	nRF24_RX_PIPE1  = (uint8_t)0x01, // Packet received from the PIPE#1
@@ -172,7 +178,7 @@ typedef enum {
 } nRF24_RXResult;
 
 
-// Addresses of the RX_PW_P# registers
+/* Addresses of the RX_PW_P# registers */
 static const uint8_t nRF24_RX_PW_PIPE[6] = {
 		nRF24_REG_RX_PW_P0,
 		nRF24_REG_RX_PW_P1,
@@ -182,7 +188,7 @@ static const uint8_t nRF24_RX_PW_PIPE[6] = {
 		nRF24_REG_RX_PW_P5
 };
 
-// Addresses of the address registers
+/* Addresses of the address registers */
 static const uint8_t nRF24_ADDR_REGS[7] = {
 		nRF24_REG_RX_ADDR_P0,
 		nRF24_REG_RX_ADDR_P1,
@@ -193,41 +199,206 @@ static const uint8_t nRF24_ADDR_REGS[7] = {
 		nRF24_REG_TX_ADDR
 };
 
-
-// Function prototypes
+/**
+ * \brief Set transceiver to default state
+ */
 void nRF24_Init(void);
+
+/**
+ * \brief Check if nRF24L01+ is connected to SPI
+ * \return Return `1` if the device response is correct, `0` otherwise
+ */
 uint8_t nRF24_Check(void);
 
+/**
+ * \brief Read a register
+ * \param reg: Address of register to read
+ * \return Value of register
+ */
+uint8_t nRF24_ReadReg(uint8_t reg);
+
+/**
+ * \brief Write a new value to register
+ * \param reg: Address of register to write
+ * \param value: Value to write
+ */
+void nRF24_WriteReg(uint8_t reg, uint8_t value);
+
+/**
+ * \brief Read a multi-byte register
+ * \param reg: Address of register to read
+ * \param pBuf: Pointer where store data read
+ * \param count: number of bytes to read
+ */
+void nRF24_ReadMBReg(uint8_t reg, uint8_t *pBuf, uint8_t count);
+
+/**
+ * \brief Write a multi-byte register
+ * \param reg: Address of register to write
+ * \param pBuf: Pointer of data to be written
+ * \param count: number of bytes to write
+ */
+void nRF24_WriteMBReg(uint8_t reg, uint8_t *pBuf, uint8_t count);
+
+/**
+ * \brief Control transceiver power mode
+ * \param mode: New state of power mode, one of nRF24_PWR_xx values
+ */
 void nRF24_SetPowerMode(uint8_t mode);
+
+/**
+ * \brief Set transceiver operational mode
+ * \param mode: Operational mode, one of nRF24_MODE_xx values
+ */
 void nRF24_SetOperationalMode(uint8_t mode);
+
+/**
+ * \brief Set frequency channel
+ * \param channel: Radio frequency channel, value from 0 to 127
+ * \note Frequency will be 2400 + channel MHz
+ */
 void nRF24_SetRFChannel(uint8_t channel);
+
+/**
+ * \brief Set automatic retransmission parameters
+ * \param ard: Auto retransmit delay, one of nRF24_ARD_xx values
+ * \param arc: Count of auto retransmits, value form 0 to 15
+ * \note Zero arc value means that the automatic retransmission disabled
+ */
 void nRF24_SetAutoRetr(uint8_t ard, uint8_t arc);
-void nRF24_SetAddrWidth(uint8_t addr_width);
+
+/**
+ * \brief Set of address widths
+ * \param addrWidth: RX/TX address field width, value from 3 to 5
+ */
+void nRF24_SetAddrWidth(uint8_t addrWidth);
+
+/**
+ * \brief Set static RX address for a specified pipe
+ * \param pipe: Configuration address, one of nRF24_PIPEx values
+ * \param addr: Pointer to the buffer with address
+ * \note Pipe can be a number from 0 to 5 (RX pipes) and 6 (TX pipe)
+			Check the macros in nRF24.h
+ */
 void nRF24_SetAddr(uint8_t pipe, const uint8_t *addr);
-void nRF24_SetTXPower(uint8_t tx_pwr);
-void nRF24_SetDataRate(uint8_t data_rate);
+
+/**
+ * \brief Configure RF output power in TX mode
+ * \param tx_pwr: RF output power, one of nRF24_TXPWR_xx values
+ */
+void nRF24_SetTXPower(uint8_t txPwr);
+
+/**
+ * \brief Configure transceiver data rate
+ * \param data_rate: Data rate, one of nRF24_DR_xx values
+ */
+void nRF24_SetDataRate(uint8_t dataRate);
+
+/**
+ * \brief Configure transceiver CRC scheme
+ * \param scheme: CRC scheme, one of nRF24_CRC_xx values
+ * \note CRC required activation if one RX pipe has AA activated
+ */
 void nRF24_SetCRCScheme(uint8_t scheme);
-void nRF24_SetRXPipe(uint8_t pipe, uint8_t aa_state, uint8_t payload_len);
+
+/**
+ * \brief Configure a specified RX pipe
+ * \param pipe - number of the RX pipe, value from 0 to 5
+ * \param aa_state: State of auto acknowledgment, one of nRF24_AA_xx values
+ * \param payloadLen - payload length in bytes
+ */
+void nRF24_SetRXPipe(uint8_t pipe, uint8_t aaState, uint8_t payloadLen);
+
+/**
+ * \brief Disable specified RX pipe
+ * \param pipe: Number of RX pipe, value from 0 to 5
+ */
 void nRF24_ClosePipe(uint8_t pipe);
+
+/**
+ * \brief Enable the auto retransmit for the specified RX pipe
+ * \param pipe: number of the RX pipe, value from 0 to 5
+ */
 void nRF24_EnableAA(uint8_t pipe);
+
+/**
+ * \brief Disable the auto retransmit for one or all RX pipes
+ * \param pipe: number of the RX pipe, value from 0 to 5, any other value will disable AA for all RX pipes
+ */
 void nRF24_DisableAA(uint8_t pipe);
 
+/**
+ * \brief Get value of the STATUS register
+ * \return Value of STATUS register
+ */
 uint8_t nRF24_GetStatus(void);
+
+/**
+ * \brief Get pending IRQ flags
+ * \return Current status of RX_DR, TX_DS and MAX_RT bits of the STATUS register
+ */
 uint8_t nRF24_GetIRQFlags(void);
+
+/**
+ * \brief Get status of the RX FIFO
+ * \return One of the nRF24_STATUS_RXFIFO_xx values
+ */
 uint8_t nRF24_GetStatus_RXFIFO(void);
+
+/**
+ * \brief Get status of the TX FIFO
+ * \return One of the nRF24_STATUS_TXFIFO_xx values
+ */
 uint8_t nRF24_GetStatus_TXFIFO(void);
+
+/**
+ * \brief Get pipe number for the payload available for reading from RX FIFO
+ * \return Pipe number or ´0x07´ if the RX FIFO is empty
+ */
 uint8_t nRF24_GetRXSource(void);
+
+/**
+ * \brief Get auto retransmit statistic
+ * \return Value of OBSERVE_TX register
+ */
 uint8_t nRF24_GetRetransmitCounters(void);
 
+/**
+ * \brief Reset packet lost counter (PLOS_CNT bits in OBSERVER_TX register)
+ */
 void nRF24_ResetPLOS(void);
+
+/**
+ * \brief Flush TX FIFO
+ */
 void nRF24_FlushTX(void);
+
+/**
+ * \brief Flush RX FIFO
+ */
 void nRF24_FlushRX(void);
+
+/**
+ * \brief Clear any pending IRQ flags
+ */
 void nRF24_ClearIRQFlags(void);
 
+/**
+ * \brief Write TX payload
+ * \param pBuf: Pointer to the buffer with payload data
+ * \param length: Payload length in bytes
+ */
 void nRF24_WritePayload(uint8_t *pBuf, uint8_t length);
+
+/**
+ * \brief Read top level payload available in the RX FIFO
+ * \param pBuf: Pointer to the buffer to store a payload data
+ * \param length: Payload length in bytes
+ * \return Return one of \ref nRF24_RXResult values
+ */
 nRF24_RXResult nRF24_ReadPayload(uint8_t *pBuf, uint8_t *length);
 
 #define nRF24_RX_ON()   nRF24_CE_H();
 #define nRF24_RX_OFF()  nRF24_CE_L();
 
-#endif // __NRF24_H
+#endif

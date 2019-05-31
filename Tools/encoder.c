@@ -1,3 +1,14 @@
+/**
+ * @author  Pablo Reyes Robles
+ * @email   pablo.reyesr@alumnos.usm.cl
+ * @version v1.0
+@verbatim
+   ----------------------------------------------------------------------
+   Sysmic Robotics, 2019
+   ----------------------------------------------------------------------
+@endverbatim
+ */
+
 #include "encoder.h"
 
 float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)

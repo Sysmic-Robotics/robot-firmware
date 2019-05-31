@@ -1,3 +1,14 @@
+/**
+ * @author  Pablo Reyes Robles
+ * @email   pablo.reyesr@alumnos.usm.cl
+ * @version v1.0
+@verbatim
+   ----------------------------------------------------------------------
+   Sysmic Robotics, 2019
+   ----------------------------------------------------------------------
+@endverbatim
+ */
+
 #include "motor.h"
 
 void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t enable)

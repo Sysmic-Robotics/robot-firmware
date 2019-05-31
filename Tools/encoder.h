@@ -56,14 +56,12 @@
 #define M_PI 3.14159265358979323846
 #define ENCODER_CPR		4 * 2048.0
 
-typedef enum
-{
+typedef enum {
 	ENCODER_STATUS_DISABLE = 0,
 	ENCODER_STATUS_ENABLE
 } Encoder_Status_t;
 
-typedef struct Encoder_Handler
-{
+typedef struct Encoder_Handler {
 	volatile uint32_t *count;
 	float oldPos;
 

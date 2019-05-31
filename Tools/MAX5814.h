@@ -2,10 +2,9 @@
  * @author  Pablo Reyes Robles
  * @email   pablo.reyesr@alumnos.usm.cl
  * @version v1.0
- * @license UTFSM
 @verbatim
    ----------------------------------------------------------------------
-    Copyright (C) Sysmic Robotics, 2019
+   Sysmic Robotics, 2019
    ----------------------------------------------------------------------
 @endverbatim
  */
@@ -92,8 +91,7 @@
 
 #define MAX5814_MAX_VAL					1023
 
-typedef struct MAX5814
-{
+typedef struct MAX5814 {
 	I2C_HandleTypeDef *i2cHandler;
 	uint8_t i2cAddress;
 	uint8_t txBuffer[3];

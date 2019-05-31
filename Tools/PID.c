@@ -1,3 +1,14 @@
+/**
+ * @author  Pablo Reyes Robles
+ * @email   pablo.reyesr@alumnos.usm.cl
+ * @version v1.0
+@verbatim
+   ----------------------------------------------------------------------
+   Sysmic Robotics, 2019
+   ----------------------------------------------------------------------
+@endverbatim
+ */
+
 #include "PID.h"
 
 void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable)
@@ -27,17 +38,25 @@ void PID_CloseLoop(PID_Handler_t *pidDevice, float reference, float measure)
 
 	pidDevice->integral += pidDevice->error * pidDevice->params.Ki;
 	if (pidDevice->integral > pidDevice->params.outputMax)
+	{
 		pidDevice->integral = pidDevice->params.outputMax;
+	}
 	else if (pidDevice->integral < pidDevice->params.outputMin)
+	{
 		pidDevice->integral = pidDevice->params.outputMin;
-
+	}
+	
 	float measDiff = measure - pidDevice->lastMeasure;
 		
 	pidDevice->output = pidDevice->error * pidDevice->params.Kp + pidDevice->integral + measDiff * pidDevice->params.Kd;
 	if (pidDevice->output > pidDevice->params.outputMax)
+	{
 		pidDevice->output = pidDevice->params.outputMax;
+	}		
 	else if (pidDevice->output < pidDevice->params.outputMin)
+	{
 		pidDevice->output = pidDevice->params.outputMin;
+	}
 
 	pidDevice->lastMeasure = measure;
 }
@@ -51,7 +70,7 @@ void PID_UpdateController(PID_Handler_t *pidDevice, float Kp, float Ki, float Kd
 	pidDevice->params.sampleTime = sampleTime;
 }
 
-void PID_UpdateLimits(PID_Handler_t *pidDevice, float outputMax, float outputMin)
+void PID_UpdateLimits(PID_Handler_t *pidDevice, float outputMax, float outputMin) 
 {
 	pidDevice->params.outputMax = outputMax;
 	pidDevice->params.outputMin = outputMin;

@@ -1,3 +1,14 @@
+/**
+ * @author  Pablo Reyes Robles
+ * @email   pablo.reyesr@alumnos.usm.cl
+ * @version v1.0
+@verbatim
+   ----------------------------------------------------------------------
+   Sysmic Robotics, 2019
+   ----------------------------------------------------------------------
+@endverbatim
+ */
+
 #include "MAX5814.h"
 
 void MAX5814_WriteCommand(MAX5814_Handler_t *dacDevice)
