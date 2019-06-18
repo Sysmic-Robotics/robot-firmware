@@ -35,6 +35,14 @@ void I2C_Write(I2C_TypeDef *I2Cx, uint8_t address, uint8_t txData);
 void I2C_WriteMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *txData, uint16_t len);
 
 /**
+ * \brief Write a single byte through I2C
+ * \param I2Cx: I2C instance
+ * \param address: device address
+ * \return Byte to receive
+ */
+uint8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t address);
+
+/**
  * \brief Write multiple bytes through I2C
  * \param I2Cx: I2C instance
  * \param address: device address
