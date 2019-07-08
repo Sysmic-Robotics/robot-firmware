@@ -10,7 +10,7 @@ void I2C_Write(I2C_TypeDef *I2Cx, uint8_t address, uint8_t txData)
 
     while(!LL_I2C_IsActiveFlag_SB(I2Cx));
     /* TODO: check address shift */
-    LL_I2C_TransmitData8(I2Cx, address & I2C_WRITE_OPERATION);
+    LL_I2C_TransmitData8(I2Cx, address << 1 & I2C_WRITE_OPERATION);
 
     while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
 
@@ -35,7 +35,7 @@ void I2C_WriteMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *txData, uint
 
     while(!LL_I2C_IsActiveFlag_SB(I2Cx));
     /* TODO: check address shift */
-    LL_I2C_TransmitData8(I2Cx, address & I2C_WRITE_OPERATION);
+    LL_I2C_TransmitData8(I2Cx, address << 1 & I2C_WRITE_OPERATION);
 
     while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
 
@@ -45,12 +45,12 @@ void I2C_WriteMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *txData, uint
     {
         while(!LL_I2C_IsActiveFlag_TXE(I2Cx));
 
-        LL_I2C_TransmitData8(I2Cx, txData);
+        LL_I2C_TransmitData8(I2Cx, *txData++);
         len--;
 
         if((LL_I2C_IsActiveFlag_TXE(I2Cx) && LL_I2C_IsActiveFlag_BTF(I2Cx)) && len > 0)
         {
-            LL_I2C_TransmitData8(I2Cx, txData);
+            LL_I2C_TransmitData8(I2Cx, *txData++);
             len--;
         }
 
@@ -72,7 +72,7 @@ uint8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t address)
 
     while(!LL_I2C_IsActiveFlag_SB(I2Cx));
     /* TODO: check address shift */
-    LL_I2C_TransmitData8(I2Cx, address & I2C_READ_OPERATION);
+    LL_I2C_TransmitData8(I2Cx, address << 1 | I2C_READ_OPERATION);
 
     while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
 
@@ -91,6 +91,8 @@ uint8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t address)
 
 void I2C_ReadMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *rxData, uint16_t len)
 {
+	LL_I2C_AcknowledgeNextData(I2Cx, LL_I2C_ACK);
+	
     LL_I2C_GenerateStartCondition(I2Cx);
 
     while (!LL_I2C_IsActiveFlag_BUSY(I2Cx));
@@ -99,7 +101,7 @@ void I2C_ReadMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *rxData, uint1
 
     while(!LL_I2C_IsActiveFlag_SB(I2Cx));
     /* TODO: check address shift */
-    LL_I2C_TransmitData8(I2Cx, address & I2C_READ_OPERATION);
+    LL_I2C_TransmitData8(I2Cx, address << 1 | I2C_READ_OPERATION);
 
     while(!LL_I2C_IsActiveFlag_ADDR(I2Cx));
 
@@ -121,13 +123,13 @@ void I2C_ReadMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *rxData, uint1
         {
             while(!LL_I2C_IsActiveFlag_BTF(I2Cx));
 
-            rxData++ = LL_I2C_ReceiveData8(I2Cx);
+            *rxData++ = LL_I2C_ReceiveData8(I2Cx);
             len--;
 
             LL_I2C_AcknowledgeNextData(I2Cx, LL_I2C_NACK);
             LL_I2C_GenerateStopCondition(I2Cx);
 
-            rxData++ = LL_I2C_ReceiveData8(I2Cx);
+            *rxData++ = LL_I2C_ReceiveData8(I2Cx);
             len--;
         }
         else if(len == 3)
@@ -135,28 +137,28 @@ void I2C_ReadMultiple(I2C_TypeDef *I2Cx, uint8_t address, uint8_t *rxData, uint1
             while(!LL_I2C_IsActiveFlag_BTF(I2Cx));
 
             LL_I2C_AcknowledgeNextData(I2Cx, LL_I2C_NACK);
-            rxData++ = LL_I2C_ReceiveData8(I2Cx);
+            *rxData++ = LL_I2C_ReceiveData8(I2Cx);
             len--;
 
             while(!LL_I2C_IsActiveFlag_BTF(I2Cx));
             LL_I2C_GenerateStopCondition(I2Cx);
 
-            rxData++ = LL_I2C_ReceiveData8(I2Cx);
+            *rxData++ = LL_I2C_ReceiveData8(I2Cx);
             len--;
 
-            rxData++ = LL_I2C_ReceiveData8(I2Cx);
+            *rxData++ = LL_I2C_ReceiveData8(I2Cx);
             len--;
         }
         else
         {
             while(!LL_I2C_IsActiveFlag_RXNE(I2Cx));
 
-            rxData++ = LL_I2C_ReceiveData8(I2Cx);
+            *rxData++ = LL_I2C_ReceiveData8(I2Cx);
             len--;
 
             if((LL_I2C_IsActiveFlag_RXNE(I2Cx) && LL_I2C_IsActiveFlag_BTF(I2Cx)) && len > 0)
             {
-                rxData++ = LL_I2C_ReceiveData8(I2Cx);
+                *rxData++ = LL_I2C_ReceiveData8(I2Cx);
                 len--;
             }
 
