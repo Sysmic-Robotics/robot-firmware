@@ -1,0 +1,18 @@
+--cpu Cortex-M7.fp.dp
+"stm32f7_pcb_test\startup_stm32f767xx.o"
+"stm32f7_pcb_test\main.o"
+"stm32f7_pcb_test\stm32f7xx_it.o"
+"stm32f7_pcb_test\nrf24.o"
+"stm32f7_pcb_test\nrf24_hal.o"
+"stm32f7_pcb_test\sysmic_ll_spi.o"
+"stm32f7_pcb_test\stm32f7xx_ll_gpio.o"
+"stm32f7_pcb_test\stm32f7xx_ll_spi.o"
+"stm32f7_pcb_test\stm32f7xx_ll_dma.o"
+"stm32f7_pcb_test\stm32f7xx_ll_rcc.o"
+"stm32f7_pcb_test\stm32f7xx_ll_utils.o"
+"stm32f7_pcb_test\stm32f7xx_ll_exti.o"
+"stm32f7_pcb_test\system_stm32f7xx.o"
+--library_type=microlib --strict --scatter "STM32F7_PCB_TEST\STM32F7_PCB_TEST.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "STM32F7_PCB_TEST.map" -o STM32F7_PCB_TEST\STM32F7_PCB_TEST.axf
