@@ -24,19 +24,19 @@
 
 /* CE (chip enable) pin */
 #define nRF24_CE_PORT              GPIOG
-#define nRF24_CE_PIN               LL_GPIO_PIN_9
-#define nRF24_CE_L()               LL_GPIO_ResetOutputPin(nRF24_CE_PORT, nRF24_CE_PIN)
-#define nRF24_CE_H()               LL_GPIO_SetOutputPin(nRF24_CE_PORT, nRF24_CE_PIN)
+#define nRF24_CE_PIN               GPIO_PIN_9
+#define nRF24_CE_L()               HAL_GPIO_WritePin(nRF24_CE_PORT, nRF24_CE_PIN, GPIO_PIN_RESET)
+#define nRF24_CE_H()               HAL_GPIO_WritePin(nRF24_CE_PORT, nRF24_CE_PIN, GPIO_PIN_SET)
 
 /* CSN (chip select negative) */
 #define nRF24_CSN_PORT             GPIOG
-#define nRF24_CSN_PIN              LL_GPIO_PIN_10
-#define nRF24_CSN_L()              LL_GPIO_ResetOutputPin(nRF24_CSN_PORT, nRF24_CSN_PIN)
-#define nRF24_CSN_H()              LL_GPIO_SetOutputPin(nRF24_CSN_PORT, nRF24_CSN_PIN)
+#define nRF24_CSN_PIN              GPIO_PIN_10
+#define nRF24_CSN_L()              HAL_GPIO_WritePin(nRF24_CSN_PORT, nRF24_CSN_PIN, GPIO_PIN_RESET)
+#define nRF24_CSN_H()              HAL_GPIO_WritePin(nRF24_CSN_PORT, nRF24_CSN_PIN, GPIO_PIN_SET)
 
 /* IRQ pin */
 #define nRF24_IRQ_PORT             GPIOG
-#define nRF24_IRQ_PIN              LL_GPIO_PIN_1
+#define nRF24_IRQ_PIN              GPIO_PIN_1
 
 /**
  * \brief Set and reset the GPIO lines of the nRF24L01+ transceiver

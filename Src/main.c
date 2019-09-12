@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "nrf24.h"
+#include "board.h"
 #include "string.h"
 /* USER CODE END Includes */
 
@@ -66,6 +67,8 @@ static void MX_I2C1_Init(void);
 uint8_t rxBuffer[32];
 uint8_t rxAddr[5];
 uint8_t rxLen;
+
+uint8_t status;
 /* USER CODE END 0 */
 
 /**
@@ -101,27 +104,26 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 	nRF24_GPIO_Init();
-	LL_SPI_Enable(SPI1);
 	nRF24_Init();
 	nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 24);
   nRF24_DisableAA(nRF24_PIPETX);
 	nRF24_SetPowerMode(nRF24_PWR_UP);
 	nRF24_SetOperationalMode(nRF24_MODE_RX);
+  /*
 	checkSPI = nRF24_Check();
 	memset(rxAddr, 0xE7, 5);
 	nRF24_SetAddr(0, rxAddr);
+  */
 	nRF24_RX_ON();	
 	
 	memset(rxBuffer, 0, 24);
-	LL_GPIO_SetOutputPin(GPIOI, LL_GPIO_PIN_12);
-	LL_GPIO_ResetOutputPin(GPIOI, LL_GPIO_PIN_13 | LL_GPIO_PIN_14);
-	LL_mDelay(10);
-	LL_GPIO_SetOutputPin(GPIOI, LL_GPIO_PIN_13);
-	LL_GPIO_ResetOutputPin(GPIOI, LL_GPIO_PIN_12 | LL_GPIO_PIN_14);
-	LL_mDelay(10);
-	LL_GPIO_SetOutputPin(GPIOI, LL_GPIO_PIN_14);
-	LL_mDelay(10);
-	LL_GPIO_ResetOutputPin(GPIOI, LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14);
+  for (uint8_t i = 0; i < 10; i++)
+  {
+    Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_1);
+    Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_2);
+    Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_3);
+    HAL_Delay(10);
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -131,32 +133,13 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
+		status = nRF24_GetStatus();
+		//if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
+		if(nRF24_GetStatus() & nRF24_FLAG_RX_DR)
 		{
 			nRF24_ReadPayload(rxBuffer, &rxLen);
 			nRF24_FlushRX();
-      nRF24_CE_L();
-			LL_mDelay(100);
-      nRF24_SetOperationalMode(nRF24_MODE_TX);
-      nRF24_WritePayload(rxBuffer, 24);
-      nRF24_CE_H();
-      while(!(nRF24_GetStatus() & nRF24_FLAG_TX_DS));
-      nRF24_ClearIRQFlags();
-      nRF24_FlushTX();
-      nRF24_CE_L();
-
-      nRF24_SetOperationalMode(nRF24_MODE_RX);
-		  nRF24_CE_H();
-
-			LL_GPIO_SetOutputPin(GPIOI, LL_GPIO_PIN_12);
-			LL_GPIO_ResetOutputPin(GPIOI, LL_GPIO_PIN_13 | LL_GPIO_PIN_14);
-			LL_mDelay(10);
-			LL_GPIO_SetOutputPin(GPIOI, LL_GPIO_PIN_13);
-			LL_GPIO_ResetOutputPin(GPIOI, LL_GPIO_PIN_12 | LL_GPIO_PIN_14);
-			LL_mDelay(10);
-			LL_GPIO_SetOutputPin(GPIOI, LL_GPIO_PIN_14);
-			LL_mDelay(10);
-			LL_GPIO_ResetOutputPin(GPIOI, LL_GPIO_PIN_12 | LL_GPIO_PIN_13 | LL_GPIO_PIN_14);
+			nRF24_GetIRQFlags();
 		}
   }
   /* USER CODE END 3 */
