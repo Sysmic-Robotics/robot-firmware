@@ -427,6 +427,11 @@
               <FileType>1</FileType>
               <FilePath>..\Tools\board.c</FilePath>
             </File>
+            <File>
+              <FileName>MAX581x.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Tools\MAX581x.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -438,9 +443,6 @@
               <FilePath>../Src/system_stm32f7xx.c</FilePath>
             </File>
           </Files>
-        </Group>
-        <Group>
-          <GroupName>::CMSIS</GroupName>
         </Group>
         <Group>
           <GroupName>Drivers/STM32F7xx_HAL_Driver</GroupName>
@@ -536,6 +538,9 @@
               <FilePath>../Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_exti.c</FilePath>
             </File>
           </Files>
+        </Group>
+        <Group>
+          <GroupName>::CMSIS</GroupName>
         </Group>
       </Groups>
     </Target>

@@ -50,7 +50,8 @@
 #include "stm32f7xx_hal.h"
 #endif
 
-#include "stm32f4xx_hal.h"
+#include "stm32f7xx_hal.h"
+#define MAX5815
 
 #define MAX581x_ADDRESS                 0x00
 #define MAX581x_WRITE_OPERATION         0x00
@@ -90,10 +91,14 @@
 #define MAX581x_SEL_C					0x04
 #define MAX581x_SEL_D					0x08
 
-#ifdef	MAX5814
+#if			defined(MAX5814)
 #define MAX581x_MAX_VAL					1023
-#elif	MAX5815
+#define MAX581x_LEFT_SHIFT				6
+#define MAX581x_RIGHT_SHIFT				2
+#elif		defined(MAX5815)
 #define MAX581x_MAX_VAL					4095
+#define MAX581x_LEFT_SHIFT				4
+#define MAX581x_RIGHT_SHIFT				4
 #endif
 
 typedef struct MAX581x {

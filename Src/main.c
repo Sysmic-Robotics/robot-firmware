@@ -26,16 +26,30 @@
 #include "nrf24.h"
 #include "board.h"
 #include "string.h"
+#include "MAX581x.h"
+#include "math.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+enum {
+	WHEEL_P_ROTATION = 0,
+	WHEEL_N_ROTATION
+};
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+/* WARNING: ASSUMING LINEAR SPEED RATE FROM 0V -> 0[rpm] TO 2V -> NOMINAL[rpm]. SHOULD BE FIXED WITH PID */
+#define M_PI								3.14159265358979323846
 
+#define MOTOR_NOMINAL_SPEED	5240.0 / (60 * 2 * M_PI)	// rpm -> rad/s
+#define DAC_MAX_VAL					4096.0
+#define MOTOR_DAC_RATIO			DAC_MAX_VAL / MOTOR_NOMINAL_SPEED
+
+#define WHEEL_RADIO					2.0 // FIX IT
+#define WHEEL_GEAR_RATIO		1.27 // FIX IT
+#define WHEEL_MOTOR_RATIO		MOTOR_DAC_RATIO * WHEEL_GEAR_RATIO
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -59,7 +73,8 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-
+/* TODO: make object of wheel/motor in open loop */
+void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -69,6 +84,9 @@ uint8_t rxAddr[5];
 uint8_t rxLen;
 
 uint8_t status;
+uint8_t direction[4];
+double speed[4];
+double kinematic[4][3];
 /* USER CODE END 0 */
 
 /**
@@ -103,6 +121,12 @@ int main(void)
   MX_SPI1_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+	/* Define wheels angles in motor.h */
+	kinematic[0][0] = sin(-M_PI / 4.0); kinematic[0][1] = -cos(-M_PI / 4.0); kinematic[0][2] = -0.083648;
+	kinematic[1][0] = sin(2.0 * (M_PI / 9.0)); kinematic[1][1] = -cos(2.0 * (M_PI / 9.0)); kinematic[1][2] = -0.083648;
+	kinematic[2][0] = sin(7.0 * (M_PI / 9.0)); kinematic[2][1] = -cos(7.0 * (M_PI / 9.0)); kinematic[2][2] = -0.083648;
+	kinematic[3][0] = sin(5.0 * (M_PI / 4.0)); kinematic[3][1] = -cos(5.0 * (M_PI / 4.0)); kinematic[3][2] = -0.083648;
+
 	nRF24_GPIO_Init();
 	nRF24_Init();
 	nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 24);
@@ -122,8 +146,12 @@ int main(void)
     Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_1);
     Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_2);
     Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_3);
-    HAL_Delay(10);
+    HAL_Delay(100);
   }
+
+  MAX581x_Handler_t dacDevice;
+  MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
+  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -133,13 +161,21 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		/* TODO: USE FREERTOS */
 		status = nRF24_GetStatus();
 		//if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
 		if(nRF24_GetStatus() & nRF24_FLAG_RX_DR)
 		{
 			nRF24_ReadPayload(rxBuffer, &rxLen);
 			nRF24_FlushRX();
-			nRF24_GetIRQFlags();
+			nRF24_ClearIRQFlags();
+			
+			//speed = (uint16_t)(((double)rxBuffer[1] / 100.0) * 4095.0 / 1.27);
+			setSpeed(rxBuffer, speed, direction);
+			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, (uint16_t)(speed[0] * WHEEL_MOTOR_RATIO));
+			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, (uint16_t)(speed[1] * WHEEL_MOTOR_RATIO));
+			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, (uint16_t)(speed[2] * WHEEL_MOTOR_RATIO));
+			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, (uint16_t)(speed[3] * WHEEL_MOTOR_RATIO));
 		}
   }
   /* USER CODE END 3 */
@@ -325,7 +361,29 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn)
+{
+	/* Velocities vector: vx, vy and vr respectively */
+	double v_vel[3];
+	v_vel[0] = (*(buffer + 1) & 0x80) ? (double)(*(buffer + 1) & 0x7F) / 100.0 : -(double)(*(buffer + 1) & 0x7F) / 100.0;
+	v_vel[1] = (*(buffer + 2) & 0x80) ? (double)(*(buffer + 2) & 0x7F) / 100.0 : -(double)(*(buffer + 2) & 0x7F) / 100.0;
+	v_vel[2] = (*(buffer + 3) & 0x80) ? (double)(*(buffer + 3) & 0x7F) / 100.0 : -(double)(*(buffer + 3) & 0x7F) / 100.0;
 
+	for (uint8_t i = 0; i < 4; i++)
+	{
+		/* Temporal speed variable. Calculate each wheel speed respect to robot kinematic model */
+		double t_vel = 0;
+		for (uint8_t j = 0; j < 3; j++)
+		{
+			t_vel += kinematic[i][j] * v_vel[j];
+		}
+		/* Check velocity direction */
+		*(turn + i) = (t_vel > 0) ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
+
+		/* Fill speed array. Speed in [rad/s] */
+		*(velocity + i) = (fabs(t_vel) / (2 * M_PI * WHEEL_RADIO));
+	}
+}
 /* USER CODE END 4 */
 
 /**

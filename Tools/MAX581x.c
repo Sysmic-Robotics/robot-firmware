@@ -41,8 +41,8 @@ void MAX581x_Reference(MAX581x_Handler_t *dacDevice, uint8_t dacRefConfig)
 void MAX581x_Code(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint16_t dacData)
 {
 	dacDevice->txBuffer[0] = MAX581x_CMD_CODEn | dacSelector;
-	dacDevice->txBuffer[1] = (uint8_t)((dacData >> 2) & 0xFF);
-	dacDevice->txBuffer[2] = (uint8_t)((dacData << 6) & 0xF0);
+	dacDevice->txBuffer[1] = (uint8_t)((dacData >> MAX581x_RIGHT_SHIFT) & 0xFF);
+	dacDevice->txBuffer[2] = (uint8_t)((dacData << MAX581x_LEFT_SHIFT) & 0xF0);
 
 	MAX581x_WriteCommand(dacDevice);
 }
@@ -59,8 +59,8 @@ void MAX581x_Load(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint16_t da
 void MAX581x_CodeLoadAll(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint16_t dacData)
 {
 	dacDevice->txBuffer[0] = MAX581x_CMD_CODEn_LOAD_ALL | dacSelector;
-	dacDevice->txBuffer[1] = (uint8_t)((dacData >> 2) & 0xFF);
-	dacDevice->txBuffer[2] = (uint8_t)((dacData << 6) & 0xF0);
+	dacDevice->txBuffer[1] = (uint8_t)((dacData >> MAX581x_RIGHT_SHIFT) & 0xFF);
+	dacDevice->txBuffer[2] = (uint8_t)((dacData << MAX581x_LEFT_SHIFT) & 0xF0);
 
 	MAX581x_WriteCommand(dacDevice);
 }
@@ -68,8 +68,8 @@ void MAX581x_CodeLoadAll(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint
 void MAX581x_CodeLoad(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint16_t dacData)
 {
 	dacDevice->txBuffer[0] = MAX581x_CMD_CODEn_LOADn | dacSelector;
-	dacDevice->txBuffer[1] = (uint8_t)((dacData >> 2) & 0xFF);
-	dacDevice->txBuffer[2] = (uint8_t)((dacData << 6) & 0xF0);
+	dacDevice->txBuffer[1] = (uint8_t)((dacData >> MAX581x_RIGHT_SHIFT) & 0xFF);
+	dacDevice->txBuffer[2] = (uint8_t)((dacData << MAX581x_LEFT_SHIFT) & 0xF0);
 
 	MAX581x_WriteCommand(dacDevice);
 }
@@ -77,8 +77,8 @@ void MAX581x_CodeLoad(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint16_
 void MAX581x_CodeAll(MAX581x_Handler_t *dacDevice, uint16_t dacData)
 {
 	dacDevice->txBuffer[0] = MAX581x_CMD_CODE_ALL;
-	dacDevice->txBuffer[1] = (uint8_t)((dacData >> 2) & 0xFF);
-	dacDevice->txBuffer[2] = (uint8_t)((dacData << 6) & 0xF0);
+	dacDevice->txBuffer[1] = (uint8_t)((dacData >> MAX581x_RIGHT_SHIFT) & 0xFF);
+	dacDevice->txBuffer[2] = (uint8_t)((dacData << MAX581x_LEFT_SHIFT) & 0xF0);
 
 	MAX581x_WriteCommand(dacDevice);
 }
@@ -95,8 +95,8 @@ void MAX581x_LoadAll(MAX581x_Handler_t *dacDevice)
 void MAX581x_CodeAllLoadAll(MAX581x_Handler_t *dacDevice, uint16_t dacData)
 {
 	dacDevice->txBuffer[0] = MAX581x_CMD_CODE_ALL_LOAD_ALL;
-	dacDevice->txBuffer[1] = (uint8_t)((dacData >> 2) & 0xFF);
-	dacDevice->txBuffer[2] = (uint8_t)((dacData << 6) & 0xF0);
+	dacDevice->txBuffer[1] = (uint8_t)((dacData >> MAX581x_RIGHT_SHIFT) & 0xFF);
+	dacDevice->txBuffer[2] = (uint8_t)((dacData << MAX581x_LEFT_SHIFT) & 0xF0);
 
 	MAX581x_WriteCommand(dacDevice);
 }

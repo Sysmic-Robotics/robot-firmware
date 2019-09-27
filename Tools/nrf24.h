@@ -78,6 +78,8 @@
 #define nRF24_MASK_PLOS_CNT        (uint8_t)0xF0 // Mask for PLOS_CNT[7:4] bits in OBSERVE_TX register
 #define nRF24_MASK_ARC_CNT         (uint8_t)0x0F // Mask for ARC_CNT[3:0] bits in OBSERVE_TX register
 
+#define nRF24_TEST_ADDR            "nRF24"
+
 /* Macros of ARD config in ascent order */
 enum {
 	nRF24_ARD_NONE   = (uint8_t)0x00, // Dummy value for case when retransmission is not used
@@ -353,7 +355,7 @@ uint8_t nRF24_GetStatus_TXFIFO(void);
 
 /**
  * \brief Get pipe number for the payload available for reading from RX FIFO
- * \return Pipe number or ´0x07´ if the RX FIFO is empty
+ * \return Pipe number or �0x07� if the RX FIFO is empty
  */
 uint8_t nRF24_GetRXSource(void);
 

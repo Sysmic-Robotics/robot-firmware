@@ -50,7 +50,7 @@
 #include "stm32f7xx_hal.h"
 #endif
 
-#include "stm32f4xx_hal.h"
+#include "stm32f7xx_hal.h"
 #include "encoder.h"
 #include "PID.h"
 #include "MAX5814.h"
