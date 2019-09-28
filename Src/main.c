@@ -39,7 +39,7 @@ enum {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define ROBOT_RADIO   0.18
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -113,7 +113,7 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 	/* Define wheels angles in motor.h */
-	kinematic[0][0] = sin(-M_PI / 4.0); kinematic[0][1] = -cos(-M_PI / 4.0); kinematic[0][2] = -0.083648;
+	kinematic[0][0] = sin(-M_PI / 4.0); kinematic[0][1] = -cos(-M_PI / 4.0); kinematic[0][2] = -0.083648; // ROBOT_RADIO
 	kinematic[1][0] = sin(2.0 * (M_PI / 9.0)); kinematic[1][1] = -cos(2.0 * (M_PI / 9.0)); kinematic[1][2] = -0.083648;
 	kinematic[2][0] = sin(7.0 * (M_PI / 9.0)); kinematic[2][1] = -cos(7.0 * (M_PI / 9.0)); kinematic[2][2] = -0.083648;
 	kinematic[3][0] = sin(5.0 * (M_PI / 4.0)); kinematic[3][1] = -cos(5.0 * (M_PI / 4.0)); kinematic[3][2] = -0.083648;
@@ -140,6 +140,7 @@ int main(void)
   for (uint8_t i = 0; i < 4; i++)
   {
     Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
+    /* TODO: Add GPIO for each motor */
   }
 
   for (uint8_t i = 0; i < 10; i++)
@@ -368,9 +369,9 @@ void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn)
 {
 	/* Velocities vector: vx, vy and vr respectively */
 	double v_vel[3];
-	v_vel[0] = (*(buffer + 1) & 0x80) ? (double)(*(buffer + 1) & 0x7F) / 100.0 : -(double)(*(buffer + 1) & 0x7F) / 100.0;
-	v_vel[1] = (*(buffer + 2) & 0x80) ? (double)(*(buffer + 2) & 0x7F) / 100.0 : -(double)(*(buffer + 2) & 0x7F) / 100.0;
-	v_vel[2] = (*(buffer + 3) & 0x80) ? (double)(*(buffer + 3) & 0x7F) / 100.0 : -(double)(*(buffer + 3) & 0x7F) / 100.0;
+	v_vel[0] = (*(buffer + 1) & 0x80) ? ((double)(*(buffer + 1) & 0x7F)) / 100.0 : -((double)(*(buffer + 1) & 0x7F)) / 100.0;
+	v_vel[1] = (*(buffer + 2) & 0x80) ? ((double)(*(buffer + 2) & 0x7F)) / 100.0 : -((double)(*(buffer + 2) & 0x7F)) / 100.0;
+	v_vel[2] = (*(buffer + 3) & 0x80) ? ((double)(*(buffer + 3) & 0x7F)) / 100.0 : -((double)(*(buffer + 3) & 0x7F)) / 100.0;
 
 	for (uint8_t i = 0; i < 4; i++)
 	{
