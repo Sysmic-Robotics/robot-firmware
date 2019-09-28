@@ -9,7 +9,7 @@
 @endverbatim
  */
 
-#include "PID.h"
+#include "pid.h"
 
 void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable)
 {

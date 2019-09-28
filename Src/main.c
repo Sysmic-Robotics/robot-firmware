@@ -26,8 +26,7 @@
 #include "nrf24.h"
 #include "board.h"
 #include "string.h"
-#include "MAX581x.h"
-#include "math.h"
+#include "motor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,16 +39,7 @@ enum {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* WARNING: ASSUMING LINEAR SPEED RATE FROM 0V -> 0[rpm] TO 2V -> NOMINAL[rpm]. SHOULD BE FIXED WITH PID */
-#define M_PI								3.14159265358979323846
 
-#define MOTOR_NOMINAL_SPEED	5240.0 / (60 * 2 * M_PI)	// rpm -> rad/s
-#define DAC_MAX_VAL					4096.0
-#define MOTOR_DAC_RATIO			DAC_MAX_VAL / MOTOR_NOMINAL_SPEED
-
-#define WHEEL_RADIO					2.0 // FIX IT
-#define WHEEL_GEAR_RATIO		1.27 // FIX IT
-#define WHEEL_MOTOR_RATIO		MOTOR_DAC_RATIO * WHEEL_GEAR_RATIO
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -87,6 +77,7 @@ uint8_t status;
 uint8_t direction[4];
 double speed[4];
 double kinematic[4][3];
+Motor_Handler_t motor[4];
 /* USER CODE END 0 */
 
 /**
@@ -141,6 +132,16 @@ int main(void)
 	nRF24_RX_ON();	
 	
 	memset(rxBuffer, 0, 24);
+
+  MAX581x_Handler_t dacDevice;
+  MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
+  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0);
+
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
+  }
+
   for (uint8_t i = 0; i < 10; i++)
   {
     Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_1);
@@ -148,10 +149,6 @@ int main(void)
     Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_3);
     HAL_Delay(100);
   }
-
-  MAX581x_Handler_t dacDevice;
-  MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
-  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -172,10 +169,16 @@ int main(void)
 			
 			//speed = (uint16_t)(((double)rxBuffer[1] / 100.0) * 4095.0 / 1.27);
 			setSpeed(rxBuffer, speed, direction);
+      for (uint8_t i = 0; i < 4; i++)
+      {
+        Motor_OpenLoop_Drive(&motor[i], &dacDevice, speed[i]);
+      }
+      /*
 			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, (uint16_t)(speed[0] * WHEEL_MOTOR_RATIO));
 			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, (uint16_t)(speed[1] * WHEEL_MOTOR_RATIO));
 			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, (uint16_t)(speed[2] * WHEEL_MOTOR_RATIO));
 			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, (uint16_t)(speed[3] * WHEEL_MOTOR_RATIO));
+			*/
 		}
   }
   /* USER CODE END 3 */
@@ -381,7 +384,7 @@ void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn)
 		*(turn + i) = (t_vel > 0) ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
 
 		/* Fill speed array. Speed in [rad/s] */
-		*(velocity + i) = (fabs(t_vel) / (2 * M_PI * WHEEL_RADIO));
+		*(velocity + i) = t_vel / (2 * M_PI * WHEEL_RADIO);
 	}
 }
 /* USER CODE END 4 */

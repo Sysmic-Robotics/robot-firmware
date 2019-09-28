@@ -38,5 +38,8 @@ stm32f7_pcb_test\main.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_ll_spi.h
 stm32f7_pcb_test\main.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_ll_gpio.h
 stm32f7_pcb_test\main.o: ..\Tools\board.h
 stm32f7_pcb_test\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
-stm32f7_pcb_test\main.o: ..\Tools\MAX581x.h
+stm32f7_pcb_test\main.o: ..\Tools\motor.h
+stm32f7_pcb_test\main.o: ..\Tools\encoder.h
 stm32f7_pcb_test\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+stm32f7_pcb_test\main.o: ..\Tools\pid.h
+stm32f7_pcb_test\main.o: ..\Tools\MAX581x.h

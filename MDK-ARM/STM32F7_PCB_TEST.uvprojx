@@ -432,6 +432,21 @@
               <FileType>1</FileType>
               <FilePath>..\Tools\MAX581x.c</FilePath>
             </File>
+            <File>
+              <FileName>motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Tools\motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>encoder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Tools\encoder.c</FilePath>
+            </File>
+            <File>
+              <FileName>pid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Tools\pid.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

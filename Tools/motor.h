@@ -52,24 +52,23 @@
 
 #include "stm32f7xx_hal.h"
 #include "encoder.h"
-#include "PID.h"
-#include "MAX5814.h"
+#include "pid.h"
+#include "MAX581x.h"
+#include "math.h"
 
-#define MOTOR_MAX_SPEED_RPS		10.0
-#define MOTOR_SPEED_CONV(x)		x * (MAX5814_MAX_VAL / MOTOR_MAX_SPEED_RPS)
+#define WHEEL_MAX_SPEED_RPS		10.0
+#define WHEEL_MAX_SPEED_RAD		10.0
+#define WHEEL_RADIO				0.0025 // FIX IT
+#define WHEEL_GEAR_RATIO		51.0 / 17.0
+
+#define MOTOR_NOMINAL_SPEED		5240.0 / (60 * 2 * M_PI)	// rpm -> rad/s
+#define MOTOR_SPEED_CONV(x)		x * (0.25 * MAX581x_MAX_VAL / MOTOR_NOMINAL_SPEED) // remove 0.25 factor to operate on max range 4095.0. Division setted on debug sessions
 
 typedef enum
 {
 	MOTOR_STATUS_DISABLE = 0,
 	MOTOR_STATUS_ENABLE
 } Motor_Status_t;
-
-typedef struct Motor_Params
-{
-	uint8_t motorID;
-	
-	/* Re-think this shietz */
-} Motor_Params_t;
 
 typedef struct Motor_GPIO
 {
@@ -78,9 +77,9 @@ typedef struct Motor_GPIO
 } Motor_GPIO_t;
 
 typedef struct Motor_Handler
-{	
+{
 	PID_Handler_t pid;
-	MAX5814_Handler_t dac;
+	MAX581x_Handler_t dac;
 	Encoder_Handler_t encoder;
 
 	Motor_GPIO_t enablePin;
@@ -92,13 +91,13 @@ typedef struct Motor_Handler
 	float measSpeed;
 
 	uint16_t voltage;
-
 	Motor_Status_t enable;
 } Motor_Handler_t;
 
 void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t enable);
-void Motor_Drive(Motor_Handler_t *motorDevice, float refSpeed, MAX5814_Handler_t *dacDevice);
+void Motor_OpenLoop_Drive(Motor_Handler_t *motorDevice,  MAX581x_Handler_t *dacDevice, float speed);
+void Motor_PID_Drive(Motor_Handler_t *motorDevice, float refSpeed, MAX581x_Handler_t *dacDevice);
 void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable);
-void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX5814_Handler_t *dacDevice);
+void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);
 
 #endif
