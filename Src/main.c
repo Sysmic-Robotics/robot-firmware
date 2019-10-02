@@ -39,7 +39,7 @@ enum {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ROBOT_RADIO   0.18
+#define ROBOT_RADIO   0.18f // 0.083648f
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -64,7 +64,7 @@ static void MX_SPI1_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 /* TODO: make object of wheel/motor in open loop */
-void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn);
+void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -75,8 +75,8 @@ uint8_t rxLen;
 
 uint8_t status;
 uint8_t direction[4];
-double speed[4];
-double kinematic[4][3];
+float speed[4];
+float kinematic[4][3];
 Motor_Handler_t motor[4];
 /* USER CODE END 0 */
 
@@ -113,10 +113,10 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 	/* Define wheels angles in motor.h */
-	kinematic[0][0] = sin(-M_PI / 4.0); kinematic[0][1] = -cos(-M_PI / 4.0); kinematic[0][2] = -0.083648; // ROBOT_RADIO
-	kinematic[1][0] = sin(2.0 * (M_PI / 9.0)); kinematic[1][1] = -cos(2.0 * (M_PI / 9.0)); kinematic[1][2] = -0.083648;
-	kinematic[2][0] = sin(7.0 * (M_PI / 9.0)); kinematic[2][1] = -cos(7.0 * (M_PI / 9.0)); kinematic[2][2] = -0.083648;
-	kinematic[3][0] = sin(5.0 * (M_PI / 4.0)); kinematic[3][1] = -cos(5.0 * (M_PI / 4.0)); kinematic[3][2] = -0.083648;
+	kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO;
+	kinematic[1][0] = sin(WHEEL_ANGlE_2); kinematic[1][1] = -cos(WHEEL_ANGlE_2); kinematic[1][2] = -ROBOT_RADIO;
+	kinematic[2][0] = sin(WHEEL_ANGlE_3); kinematic[2][1] = -cos(WHEEL_ANGlE_3); kinematic[2][2] = -ROBOT_RADIO;
+	kinematic[3][0] = sin(WHEEL_ANGlE_4); kinematic[3][1] = -cos(WHEEL_ANGlE_4); kinematic[3][2] = -ROBOT_RADIO;
 
 	nRF24_GPIO_Init();
 	nRF24_Init();
@@ -136,11 +136,39 @@ int main(void)
   MAX581x_Handler_t dacDevice;
   MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
   MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0);
+	
+	motor[0].enablePin.GPIOx = GPIOA;
+	motor[0].enablePin.GPIO_Pin = GPIO_PIN_10;
+	motor[0].dirPin.GPIOx = GPIOA;
+	motor[0].dirPin.GPIO_Pin = GPIO_PIN_9;
+	motor[0].brakePin.GPIOx = GPIOA;
+	motor[0].brakePin.GPIO_Pin = GPIO_PIN_8;
+	
+	motor[1].enablePin.GPIOx = GPIOC;
+	motor[1].enablePin.GPIO_Pin = GPIO_PIN_11;
+	motor[1].dirPin.GPIOx = GPIOC;
+	motor[1].dirPin.GPIO_Pin = GPIO_PIN_12;
+	motor[1].brakePin.GPIOx = GPIOD;
+	motor[1].brakePin.GPIO_Pin = GPIO_PIN_0;
+	
+	motor[2].enablePin.GPIOx = GPIOK;
+	motor[2].enablePin.GPIO_Pin = GPIO_PIN_7;
+	motor[2].dirPin.GPIOx = GPIOG;
+	motor[2].dirPin.GPIO_Pin = GPIO_PIN_15;
+	motor[2].brakePin.GPIOx = GPIOK;
+	motor[2].brakePin.GPIO_Pin = GPIO_PIN_6;
+	
+	motor[3].enablePin.GPIOx = GPIOF;
+	motor[3].enablePin.GPIO_Pin = GPIO_PIN_5;
+	motor[3].dirPin.GPIOx = GPIOF;
+	motor[3].dirPin.GPIO_Pin = GPIO_PIN_3;
+	motor[3].brakePin.GPIOx = GPIOF;
+	motor[3].brakePin.GPIO_Pin = GPIO_PIN_4;
 
   for (uint8_t i = 0; i < 4; i++)
   {
     Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
-    /* TODO: Add GPIO for each motor */
+    Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
   }
 
   for (uint8_t i = 0; i < 10; i++)
@@ -168,7 +196,7 @@ int main(void)
 			nRF24_FlushRX();
 			nRF24_ClearIRQFlags();
 			
-			//speed = (uint16_t)(((double)rxBuffer[1] / 100.0) * 4095.0 / 1.27);
+			//speed = (uint16_t)(((float)rxBuffer[1] / 100.0) * 4095.0 / 1.27);
 			setSpeed(rxBuffer, speed, direction);
       for (uint8_t i = 0; i < 4; i++)
       {
@@ -339,14 +367,29 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOI_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOK_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9|GPIO_PIN_10, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_0, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOG, GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_15, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOK, GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : PI12 PI13 PI14 */
   GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14;
@@ -355,28 +398,57 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOI, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PG9 PG10 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
+  /*Configure GPIO pins : PA8 PA9 PA10 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PC11 PC12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PD0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PG9 PG10 PG15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PK6 PK7 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOK, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
-void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn)
+float v_vel[3];
+void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 {
 	/* Velocities vector: vx, vy and vr respectively */
-	double v_vel[3];
-	v_vel[0] = (*(buffer + 1) & 0x80) ? ((double)(*(buffer + 1) & 0x7F)) / 100.0 : -((double)(*(buffer + 1) & 0x7F)) / 100.0;
-	v_vel[1] = (*(buffer + 2) & 0x80) ? ((double)(*(buffer + 2) & 0x7F)) / 100.0 : -((double)(*(buffer + 2) & 0x7F)) / 100.0;
-	v_vel[2] = (*(buffer + 3) & 0x80) ? ((double)(*(buffer + 3) & 0x7F)) / 100.0 : -((double)(*(buffer + 3) & 0x7F)) / 100.0;
+	
+	v_vel[0] = (*(buffer + 1) & 0x80) ? -((float)(*(buffer + 1) & 0x7F)) / 100.0f : ((float)(*(buffer + 1) & 0x7F)) / 100.0f;
+	v_vel[1] = (*(buffer + 2) & 0x80) ? -((float)(*(buffer + 2) & 0x7F)) / 100.0f : ((float)(*(buffer + 2) & 0x7F)) / 100.0f;
+	v_vel[2] = (*(buffer + 3) & 0x80) ? -((float)(*(buffer + 3) & 0x7F)) / 100.0f : ((float)(*(buffer + 3) & 0x7F)) / 100.0f;
 
 	for (uint8_t i = 0; i < 4; i++)
 	{
 		/* Temporal speed variable. Calculate each wheel speed respect to robot kinematic model */
-		double t_vel = 0;
+		float t_vel = 0;
 		for (uint8_t j = 0; j < 3; j++)
 		{
 			t_vel += kinematic[i][j] * v_vel[j];
@@ -385,7 +457,7 @@ void setSpeed(uint8_t *buffer, double *velocity, uint8_t *turn)
 		*(turn + i) = (t_vel > 0) ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
 
 		/* Fill speed array. Speed in [rad/s] */
-		*(velocity + i) = t_vel / (2 * M_PI * WHEEL_RADIO);
+		*(velocity + i) = t_vel / WHEEL_RADIO;
 	}
 }
 /* USER CODE END 4 */

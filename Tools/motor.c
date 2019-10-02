@@ -49,9 +49,25 @@ void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable)
 {
 	motorDevice->enable = enable;
 	if(enable == MOTOR_STATUS_DISABLE)
+	{
 		HAL_GPIO_WritePin(motorDevice->enablePin.GPIOx, motorDevice->enablePin.GPIO_Pin, GPIO_PIN_RESET);	
+	}		
 	else
+	{
 		HAL_GPIO_WritePin(motorDevice->enablePin.GPIOx, motorDevice->enablePin.GPIO_Pin, GPIO_PIN_SET);
+	}		
+}
+
+void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake)
+{
+	if(brake == MOTOR_BRAKE_ENABLE)
+	{
+		HAL_GPIO_WritePin(motorDevice->enablePin.GPIOx, motorDevice->enablePin.GPIO_Pin, GPIO_PIN_RESET);	
+	}		
+	else
+	{
+		HAL_GPIO_WritePin(motorDevice->enablePin.GPIOx, motorDevice->enablePin.GPIO_Pin, GPIO_PIN_SET);
+	}	
 }
 
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
@@ -59,13 +75,13 @@ void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice
 	if(speed >= (float)0.0)
 	{
 		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_SET);
-		motorDevice->voltage = (uint16_t)MOTOR_SPEED_CONV(speed);
-		MAX581x_Code(dacDevice, motorDevice->outputID, motorDevice->voltage);
+		motorDevice->voltage = (uint16_t)(MOTOR_SPEED_CONV * speed);
+		MAX581x_CodeLoad(dacDevice, motorDevice->outputID, motorDevice->voltage);
 	}
 	else
 	{
 		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_RESET);
-		motorDevice->voltage = (uint16_t)MOTOR_SPEED_CONV(fabs(speed));
-		MAX581x_Code(dacDevice, motorDevice->outputID, motorDevice->voltage);
+		motorDevice->voltage = (uint16_t)(MOTOR_SPEED_CONV * fabs(speed));
+		MAX581x_CodeLoad(dacDevice, motorDevice->outputID, motorDevice->voltage);
 	}	
 }

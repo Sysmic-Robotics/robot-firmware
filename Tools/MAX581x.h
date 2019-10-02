@@ -96,7 +96,7 @@
 #define MAX581x_LEFT_SHIFT				6
 #define MAX581x_RIGHT_SHIFT				2
 #elif		defined(MAX5815)
-#define MAX581x_MAX_VAL					4095
+#define MAX581x_MAX_VAL					4095.0f
 #define MAX581x_LEFT_SHIFT				4
 #define MAX581x_RIGHT_SHIFT				4
 #endif
