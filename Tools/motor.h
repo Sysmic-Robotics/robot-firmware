@@ -67,7 +67,7 @@
 #define WHEEL_ANGlE_4			-60.0f * M_PI / 180.0f
 
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
-#define MOTOR_SPEED_CONV			0.25f * 4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
+#define MOTOR_SPEED_CONV			4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,

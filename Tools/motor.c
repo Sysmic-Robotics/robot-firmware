@@ -17,6 +17,7 @@ void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t en
 	motorDevice->outputID = motorID;
 	motorDevice->refSpeed = 0;
 	motorDevice->measSpeed = 0;
+	Motor_Enable(motorDevice, MOTOR_STATUS_ENABLE);
 }
 
 void Motor_OpenLoop_Drive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
