@@ -135,7 +135,10 @@ int main(void)
 
   MAX581x_Handler_t dacDevice;
   MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
-  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0);
+  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0.0);
+	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, 0.0);
+	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, 0.0);
+	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, 0.0);
 	
 	motor[0].enablePin.GPIOx = GPIOA;
 	motor[0].enablePin.GPIO_Pin = GPIO_PIN_10;

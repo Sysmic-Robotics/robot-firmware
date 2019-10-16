@@ -63,11 +63,11 @@ void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake)
 {
 	if(brake == MOTOR_BRAKE_ENABLE)
 	{
-		HAL_GPIO_WritePin(motorDevice->enablePin.GPIOx, motorDevice->enablePin.GPIO_Pin, GPIO_PIN_RESET);	
+		HAL_GPIO_WritePin(motorDevice->brakePin.GPIOx, motorDevice->brakePin.GPIO_Pin, GPIO_PIN_RESET);	
 	}		
 	else
 	{
-		HAL_GPIO_WritePin(motorDevice->enablePin.GPIOx, motorDevice->enablePin.GPIO_Pin, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(motorDevice->brakePin.GPIOx, motorDevice->brakePin.GPIO_Pin, GPIO_PIN_SET);
 	}	
 }
 
