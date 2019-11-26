@@ -34,5 +34,7 @@ stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_pwr.
 stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_pwr_ex.h
 stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_spi.h
 stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_spi_ex.h
+stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h
+stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h
 stm32f7_pcb_test\nrf24.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_ll_gpio.h
 stm32f7_pcb_test\nrf24.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h

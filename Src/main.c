@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -31,10 +32,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-enum {
-	WHEEL_P_ROTATION = 0,
-	WHEEL_N_ROTATION
-};
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -53,6 +51,10 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
+TIM_HandleTypeDef htim3;
+
+osThreadId driveTaskHandle;
+osThreadId radioTaskHandle;
 /* USER CODE BEGIN PV */
 uint32_t checkSPI = 0;
 /* USER CODE END PV */
@@ -62,6 +64,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM3_Init(void);
+void DriveFunction(void const * argument);
+void RadioFunction(void const * argument);
+
 /* USER CODE BEGIN PFP */
 /* TODO: make object of wheel/motor in open loop */
 void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn);
@@ -111,68 +117,13 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_I2C1_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 	/* Define wheels angles in motor.h */
 	kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO;
 	kinematic[1][0] = sin(WHEEL_ANGlE_2); kinematic[1][1] = -cos(WHEEL_ANGlE_2); kinematic[1][2] = -ROBOT_RADIO;
 	kinematic[2][0] = sin(WHEEL_ANGlE_3); kinematic[2][1] = -cos(WHEEL_ANGlE_3); kinematic[2][2] = -ROBOT_RADIO;
 	kinematic[3][0] = sin(WHEEL_ANGlE_4); kinematic[3][1] = -cos(WHEEL_ANGlE_4); kinematic[3][2] = -ROBOT_RADIO;
-
-	nRF24_GPIO_Init();
-	nRF24_Init();
-	nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 24);
-  nRF24_DisableAA(nRF24_PIPETX);
-	nRF24_SetPowerMode(nRF24_PWR_UP);
-	nRF24_SetOperationalMode(nRF24_MODE_RX);
-  /*
-	checkSPI = nRF24_Check();
-	memset(rxAddr, 0xE7, 5);
-	nRF24_SetAddr(0, rxAddr);
-  */
-	nRF24_RX_ON();	
-	
-	memset(rxBuffer, 0, 24);
-
-  MAX581x_Handler_t dacDevice;
-  MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
-  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0.0);
-	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, 0.0);
-	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, 0.0);
-	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, 0.0);
-	
-	motor[0].enablePin.GPIOx = GPIOA;
-	motor[0].enablePin.GPIO_Pin = GPIO_PIN_10;
-	motor[0].dirPin.GPIOx = GPIOA;
-	motor[0].dirPin.GPIO_Pin = GPIO_PIN_9;
-	motor[0].brakePin.GPIOx = GPIOA;
-	motor[0].brakePin.GPIO_Pin = GPIO_PIN_8;
-	
-	motor[1].enablePin.GPIOx = GPIOC;
-	motor[1].enablePin.GPIO_Pin = GPIO_PIN_11;
-	motor[1].dirPin.GPIOx = GPIOC;
-	motor[1].dirPin.GPIO_Pin = GPIO_PIN_12;
-	motor[1].brakePin.GPIOx = GPIOD;
-	motor[1].brakePin.GPIO_Pin = GPIO_PIN_0;
-	
-	motor[2].enablePin.GPIOx = GPIOK;
-	motor[2].enablePin.GPIO_Pin = GPIO_PIN_7;
-	motor[2].dirPin.GPIOx = GPIOG;
-	motor[2].dirPin.GPIO_Pin = GPIO_PIN_15;
-	motor[2].brakePin.GPIOx = GPIOK;
-	motor[2].brakePin.GPIO_Pin = GPIO_PIN_6;
-	
-	motor[3].enablePin.GPIOx = GPIOF;
-	motor[3].enablePin.GPIO_Pin = GPIO_PIN_5;
-	motor[3].dirPin.GPIOx = GPIOF;
-	motor[3].dirPin.GPIO_Pin = GPIO_PIN_3;
-	motor[3].brakePin.GPIOx = GPIOF;
-	motor[3].brakePin.GPIO_Pin = GPIO_PIN_4;
-
-  for (uint8_t i = 0; i < 4; i++)
-  {
-    Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
-    Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
-  }
 
   for (uint8_t i = 0; i < 10; i++)
   {
@@ -183,6 +134,40 @@ int main(void)
   }
   /* USER CODE END 2 */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of driveTask */
+  osThreadDef(driveTask, DriveFunction, osPriorityAboveNormal, 0, 128);
+  driveTaskHandle = osThreadCreate(osThread(driveTask), NULL);
+
+  /* definition and creation of radioTask */
+  osThreadDef(radioTask, RadioFunction, osPriorityNormal, 0, 128);
+  radioTaskHandle = osThreadCreate(osThread(radioTask), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+  
+  /* We should never get here as control is now taken by the scheduler */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -191,27 +176,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		/* TODO: USE FREERTOS */
-		status = nRF24_GetStatus();
-		//if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
-		if(nRF24_GetStatus() & nRF24_FLAG_RX_DR)
-		{
-			nRF24_ReadPayload(rxBuffer, &rxLen);
-			nRF24_FlushRX();
-			nRF24_ClearIRQFlags();
-			
-			//speed = (uint16_t)(((float)rxBuffer[1] / 100.0) * 4095.0 / 1.27);
-			setSpeed(rxBuffer, speed, direction);
-      for (uint8_t i = 0; i < 4; i++)
-      {
-        Motor_OpenLoop_Drive(&motor[i], &dacDevice, speed[i]);
-      }
-      /*
-			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, (uint16_t)(speed[0] * WHEEL_MOTOR_RATIO));
-			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, (uint16_t)(speed[1] * WHEEL_MOTOR_RATIO));
-			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, (uint16_t)(speed[2] * WHEEL_MOTOR_RATIO));
-			MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, (uint16_t)(speed[3] * WHEEL_MOTOR_RATIO));
-			*/
-		}
+		
   }
   /* USER CODE END 3 */
 }
@@ -358,6 +323,55 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 0;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 0;
+  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -475,6 +489,151 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 	}
 }
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_DriveFunction */
+/**
+  * @brief  Function implementing the driveTask thread.
+  * @param  argument: Not used 
+  * @retval None
+  */
+/* USER CODE END Header_DriveFunction */
+void DriveFunction(void const * argument)
+{
+  /* USER CODE BEGIN 5 */
+  uint32_t timeToWait = osKernelSysTick();
+
+  MAX581x_Handler_t dacDevice;
+  MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
+  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0.0);
+	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, 0.0);
+	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, 0.0);
+	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, 0.0);
+	
+	motor[0].enablePin.GPIOx = GPIOA;
+	motor[0].enablePin.GPIO_Pin = GPIO_PIN_10;
+	motor[0].dirPin.GPIOx = GPIOA;
+	motor[0].dirPin.GPIO_Pin = GPIO_PIN_9;
+	motor[0].brakePin.GPIOx = GPIOA;
+	motor[0].brakePin.GPIO_Pin = GPIO_PIN_8;
+	
+	motor[1].enablePin.GPIOx = GPIOC;
+	motor[1].enablePin.GPIO_Pin = GPIO_PIN_11;
+	motor[1].dirPin.GPIOx = GPIOC;
+	motor[1].dirPin.GPIO_Pin = GPIO_PIN_12;
+	motor[1].brakePin.GPIOx = GPIOD;
+	motor[1].brakePin.GPIO_Pin = GPIO_PIN_0;
+	
+	motor[2].enablePin.GPIOx = GPIOK;
+	motor[2].enablePin.GPIO_Pin = GPIO_PIN_7;
+	motor[2].dirPin.GPIOx = GPIOG;
+	motor[2].dirPin.GPIO_Pin = GPIO_PIN_15;
+	motor[2].brakePin.GPIOx = GPIOK;
+	motor[2].brakePin.GPIO_Pin = GPIO_PIN_6;
+	
+	motor[3].enablePin.GPIOx = GPIOF;
+	motor[3].enablePin.GPIO_Pin = GPIO_PIN_5;
+	motor[3].dirPin.GPIOx = GPIOF;
+	motor[3].dirPin.GPIO_Pin = GPIO_PIN_3;
+	motor[3].brakePin.GPIOx = GPIOF;
+	motor[3].brakePin.GPIO_Pin = GPIO_PIN_4;
+	
+	PID_Params_t pidParams;
+  pidParams.Kp = 0.1;
+  pidParams.Ki = 10.0;
+  pidParams.Kd = 0.0;
+  pidParams.outputMax = (float)(WHEEL_MAX_SPEED_RAD * WHEEL_GEAR_RATIO);
+  pidParams.outputMin = (float)(-WHEEL_MAX_SPEED_RAD * WHEEL_GEAR_RATIO);
+  pidParams.sampleTime = 0.001;
+
+  motor[0].encoder.count = &TIM3->CNT;
+  motor[0].encoder.oldPos = TIM3->CNT / ENCODER_CPR;
+	motor[0].encoder.enable = ENCODER_STATUS_ENABLE;
+	TIM3->CR1 = TIM_CR1_CEN;
+
+  for (uint8_t i = 0; i < 4; i++)
+  {
+    Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
+    Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
+		PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
+  }
+	
+	Motor_Enable(&motor[1], MOTOR_STATUS_DISABLE);
+	Motor_Enable(&motor[2], MOTOR_STATUS_DISABLE);
+	Motor_Enable(&motor[3], MOTOR_STATUS_DISABLE);
+	
+  /* Infinite loop */
+  for(;;)
+  {
+    setSpeed(rxBuffer, speed, direction);
+    for (uint8_t i = 0; i < 4; i++)
+    {
+      Motor_CLDrive(&motor[i], &dacDevice, speed[i]);
+    }
+    osDelayUntil(&timeToWait, 1);
+  }
+  /* USER CODE END 5 */ 
+}
+
+/* USER CODE BEGIN Header_RadioFunction */
+/**
+* @brief Function implementing the radioTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_RadioFunction */
+void RadioFunction(void const * argument)
+{
+  /* USER CODE BEGIN RadioFunction */
+	nRF24_GPIO_Init();
+	nRF24_Init();
+	nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 24);
+  nRF24_DisableAA(nRF24_PIPETX);
+	nRF24_SetPowerMode(nRF24_PWR_UP);
+	nRF24_SetOperationalMode(nRF24_MODE_RX);
+  /*
+	checkSPI = nRF24_Check();
+	memset(rxAddr, 0xE7, 5);
+	nRF24_SetAddr(0, rxAddr);
+  */
+	nRF24_RX_ON();	
+	
+	memset(rxBuffer, 0, 24);
+  /* Infinite loop */
+  for(;;)
+  {
+		status = nRF24_GetStatus();
+		//if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
+		if(nRF24_GetStatus() & nRF24_FLAG_RX_DR)
+		{
+			nRF24_ReadPayload(rxBuffer, &rxLen);
+			nRF24_FlushRX();
+			nRF24_ClearIRQFlags();
+		}
+    osDelay(16);
+  }
+  /* USER CODE END RadioFunction */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

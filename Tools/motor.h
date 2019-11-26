@@ -56,8 +56,13 @@
 #include "MAX581x.h"
 #include "math.h"
 
-#define WHEEL_MAX_SPEED_RPS		10.0
-#define WHEEL_MAX_SPEED_RAD		10.0
+enum {
+	WHEEL_P_ROTATION = 0,
+	WHEEL_N_ROTATION
+};
+
+#define WHEEL_MAX_SPEED_RPS		20.0
+#define WHEEL_MAX_SPEED_RAD		2.0 * M_PI * WHEEL_MAX_SPEED_RPS
 #define WHEEL_RADIO				0.025f
 #define WHEEL_GEAR_RATIO		51.0f / 17.0f
 
@@ -67,7 +72,7 @@
 #define WHEEL_ANGlE_4			-60.0f * M_PI / 180.0f
 
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
-#define MOTOR_SPEED_CONV			4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
+#define MOTOR_SPEED_CONV		4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,
@@ -105,8 +110,15 @@ typedef struct Motor_Handler
 } Motor_Handler_t;
 
 void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t enable);
-void Motor_OpenLoop_Drive(Motor_Handler_t *motorDevice,  MAX581x_Handler_t *dacDevice, float speed);
-void Motor_PID_Drive(Motor_Handler_t *motorDevice, float refSpeed, MAX581x_Handler_t *dacDevice);
+
+/**
+ * \brief Open loop motor drive
+ * \param motorDevice: reference to motor struct
+ * \param dacDevice: reference to DAC struct
+ * \param speed: reference speed of wheel to convert into motor speed
+ */
+void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);
+void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);
 void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable);
 void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake);
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);

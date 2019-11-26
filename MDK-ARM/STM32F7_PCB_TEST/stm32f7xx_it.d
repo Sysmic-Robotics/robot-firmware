@@ -31,4 +31,15 @@ stm32f7_pcb_test\stm32f7xx_it.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_h
 stm32f7_pcb_test\stm32f7xx_it.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_pwr_ex.h
 stm32f7_pcb_test\stm32f7xx_it.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_spi.h
 stm32f7_pcb_test\stm32f7xx_it.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_spi_ex.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h
 stm32f7_pcb_test\stm32f7xx_it.o: ../Inc/stm32f7xx_it.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Inc/FreeRTOSConfig.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1/portmacro.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+stm32f7_pcb_test\stm32f7xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
