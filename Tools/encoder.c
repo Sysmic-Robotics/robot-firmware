@@ -75,5 +75,5 @@ float mod(float x, float y)
 // wrap [rad] angle to [-PI..PI)
 float AngleNormalize(float a)
 {
-	return mod(a + (float)M_PI, 2 * M_PI) - (float)M_PI;
+	return mod((2 * a + 1) * (float)M_PI, 2 * M_PI) - (float)M_PI;
 }

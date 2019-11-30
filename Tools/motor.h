@@ -61,11 +61,6 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_MAX_SPEED_RPS		20.0
-#define WHEEL_MAX_SPEED_RAD		2.0 * M_PI * WHEEL_MAX_SPEED_RPS
-#define WHEEL_RADIO				0.025f
-#define WHEEL_GEAR_RATIO		51.0f / 17.0f
-
 #define WHEEL_ANGlE_1			60.0f * M_PI / 180.0f
 #define WHEEL_ANGlE_2			130.0f * M_PI / 180.0f
 #define WHEEL_ANGlE_3			-130.0f * M_PI / 180.0f
@@ -73,6 +68,11 @@ enum {
 
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
 #define MOTOR_SPEED_CONV		4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
+
+#define WHEEL_MAX_SPEED_RPS		20.0f
+#define WHEEL_MAX_SPEED_RAD		2.0f * M_PI * WHEEL_MAX_SPEED_RPS
+#define WHEEL_RADIO				0.025f
+#define WHEEL_GEAR_RATIO		51.0f / 17.0f
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,
