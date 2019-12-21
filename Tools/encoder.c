@@ -20,7 +20,7 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 	float encPosF = encPos;
 	encPosF /= ENCODER_CPR;
 
-	float velocity = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
+	float speed = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
 	/*
 	if(velocity > 1 || velocity < -1)
 	{
@@ -29,8 +29,12 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 	velocity *= (60 / sampleTime);
 	*/
 	encoderDevice->oldPos = encPosF;
+	if(encoderDevice->minSpeed != 0.0f && fabs(speed) < encoderDevice->minSpeed)
+	{
+		speed = 0.0f;
+	}
 
-	return velocity;
+	return speed;
 }
 
 /* Tigers angle normalizer */

@@ -338,7 +338,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F767xx,STM32F767xx,USE_HAL_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>../Inc;     ../Drivers/STM32F7xx_HAL_Driver/Inc;     ../Drivers/CMSIS/Device/ST/STM32F7xx/Include;     ../Drivers/CMSIS/Include;     ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy;     ..\Tools;   ../Middlewares/Third_Party/FreeRTOS/Source/include;   ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS;   ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1</IncludePath>
+              <IncludePath>../Inc;       ../Drivers/STM32F7xx_HAL_Driver/Inc;       ../Drivers/CMSIS/Device/ST/STM32F7xx/Include;       ../Drivers/CMSIS/Include;       ../Drivers/STM32F7xx_HAL_Driver/Inc/Legacy;       ..\Tools;     ../Middlewares/Third_Party/FreeRTOS/Source/include;     ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS;     ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM7/r0p1</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>

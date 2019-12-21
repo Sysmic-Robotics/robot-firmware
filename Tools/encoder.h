@@ -67,6 +67,7 @@ typedef struct Encoder_Handler {
 
 	uint8_t overflow;	
 	int16_t resetVal;
+	float minSpeed;
 
 	Encoder_Status_t enable;
 } Encoder_Handler_t;

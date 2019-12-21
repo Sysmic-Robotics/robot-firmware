@@ -51,13 +51,16 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
+TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
+TIM_HandleTypeDef htim8;
 
 osThreadId driveTaskHandle;
 osThreadId radioTaskHandle;
 /* USER CODE BEGIN PV */
 uint32_t checkSPI = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,8 +68,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM5_Init(void);
+static void MX_TIM8_Init(void);
 void DriveFunction(void const * argument);
 void RadioFunction(void const * argument);
 
@@ -119,8 +124,10 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_I2C1_Init();
+  MX_TIM2_Init();
   MX_TIM3_Init();
   MX_TIM5_Init();
+  MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
 	/* Define wheels angles in motor.h */
 	kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO;
@@ -326,6 +333,55 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 0;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 0;
+  if (HAL_TIM_Encoder_Init(&htim2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -424,6 +480,57 @@ static void MX_TIM5_Init(void)
 }
 
 /**
+  * @brief TIM8 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM8_Init(void)
+{
+
+  /* USER CODE BEGIN TIM8_Init 0 */
+
+  /* USER CODE END TIM8_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM8_Init 1 */
+
+  /* USER CODE END TIM8_Init 1 */
+  htim8.Instance = TIM8;
+  htim8.Init.Prescaler = 0;
+  htim8.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim8.Init.Period = 65535;
+  htim8.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim8.Init.RepetitionCounter = 0;
+  htim8.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 0;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 0;
+  if (HAL_TIM_Encoder_Init(&htim8, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim8, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM8_Init 2 */
+
+  /* USER CODE END TIM8_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -437,17 +544,20 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOG_CLK_ENABLE();
   __HAL_RCC_GPIOK_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10, GPIO_PIN_RESET);
@@ -477,6 +587,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA8 PA9 PA10 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
@@ -557,8 +674,10 @@ void DriveFunction(void const * argument)
     
 
   /* USER CODE BEGIN 5 */
+	/* Init PID sampler */
   uint32_t timeToWait = osKernelSysTick();
-
+	
+	/* Init DAC: 2.0[V] ref */
   MAX581x_Handler_t dacDevice;
   MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
   MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0.0);
@@ -566,6 +685,8 @@ void DriveFunction(void const * argument)
 	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, 0.0);
 	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, 0.0);
 	
+	/* Config motors GPIO and TIM */
+	/* Motor 1 */
 	motor[0].enablePin.GPIOx = GPIOA;
 	motor[0].enablePin.GPIO_Pin = GPIO_PIN_10;
 	motor[0].dirPin.GPIOx = GPIOA;
@@ -573,6 +694,13 @@ void DriveFunction(void const * argument)
 	motor[0].brakePin.GPIOx = GPIOA;
 	motor[0].brakePin.GPIO_Pin = GPIO_PIN_8;
 	
+	motor[0].encoder.count = &TIM3->CNT;
+  motor[0].encoder.oldPos = TIM3->CNT / ENCODER_CPR;
+	motor[0].encoder.enable = ENCODER_STATUS_ENABLE;
+	motor[0].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+	TIM3->CR1 = TIM_CR1_CEN;
+	
+	/* Motor 2 */
 	motor[1].enablePin.GPIOx = GPIOC;
 	motor[1].enablePin.GPIO_Pin = GPIO_PIN_11;
 	motor[1].dirPin.GPIOx = GPIOC;
@@ -580,6 +708,13 @@ void DriveFunction(void const * argument)
 	motor[1].brakePin.GPIOx = GPIOD;
 	motor[1].brakePin.GPIO_Pin = GPIO_PIN_0;
 	
+	motor[1].encoder.count = &TIM8->CNT;
+  motor[1].encoder.oldPos = TIM8->CNT / ENCODER_CPR;
+	motor[1].encoder.enable = ENCODER_STATUS_ENABLE;
+	motor[1].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+	TIM8->CR1 = TIM_CR1_CEN;
+	
+	/* Motor 3 */
 	motor[2].enablePin.GPIOx = GPIOK;
 	motor[2].enablePin.GPIO_Pin = GPIO_PIN_7;
 	motor[2].dirPin.GPIOx = GPIOG;
@@ -587,31 +722,36 @@ void DriveFunction(void const * argument)
 	motor[2].brakePin.GPIOx = GPIOK;
 	motor[2].brakePin.GPIO_Pin = GPIO_PIN_6;
 	
+	motor[2].encoder.count = &TIM2->CNT;
+  motor[2].encoder.oldPos = TIM2->CNT / ENCODER_CPR;
+	motor[2].encoder.enable = ENCODER_STATUS_ENABLE;
+	motor[2].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+	TIM2->CR1 = TIM_CR1_CEN;
+	
+	/* Motor 4 */
 	motor[3].enablePin.GPIOx = GPIOF;
 	motor[3].enablePin.GPIO_Pin = GPIO_PIN_5;
 	motor[3].dirPin.GPIOx = GPIOF;
 	motor[3].dirPin.GPIO_Pin = GPIO_PIN_3;
 	motor[3].brakePin.GPIOx = GPIOF;
 	motor[3].brakePin.GPIO_Pin = GPIO_PIN_4;
-	
-	PID_Params_t pidParams;
-  pidParams.Kp = 0.1;
-  pidParams.Ki = 10.0;
-  pidParams.Kd = 0.0;
-  pidParams.outputMax = (float)(MOTOR_NOMINAL_SPEED * 2);
-  pidParams.outputMin = (float)(-MOTOR_NOMINAL_SPEED * 2);
-  pidParams.sampleTime = 0.001;
 
-  motor[0].encoder.count = &TIM3->CNT;
-  motor[0].encoder.oldPos = TIM3->CNT / ENCODER_CPR;
-	motor[0].encoder.enable = ENCODER_STATUS_ENABLE;
-	TIM3->CR1 = TIM_CR1_CEN;
-	
 	motor[3].encoder.count = &TIM5->CNT;
   motor[3].encoder.oldPos = TIM5->CNT / ENCODER_CPR;
 	motor[3].encoder.enable = ENCODER_STATUS_ENABLE;
+	motor[3].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
 	TIM5->CR1 = TIM_CR1_CEN;
+	
+	/* Config PID */
+	PID_Params_t pidParams;
+  pidParams.Kp = 35.0f;
+  pidParams.Ki = 5.0f;
+  pidParams.Kd = 0.0f;
+  pidParams.outputMax = (float)(/*WHEEL_MAX_SPEED_RAD * 10.0f*/ 4095.0f);
+  pidParams.outputMin = (float)(/*-WHEEL_MAX_SPEED_RAD * 10.0f*/ -4095.0f);
+  pidParams.sampleTime = 0.001;
 
+	/* Enable motors and disable brake */
   for (uint8_t i = 0; i < 4; i++)
   {
     Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
@@ -619,17 +759,15 @@ void DriveFunction(void const * argument)
 		PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
   }
 	
-	Motor_Enable(&motor[0], MOTOR_STATUS_DISABLE);
-	Motor_Enable(&motor[1], MOTOR_STATUS_DISABLE);
-	Motor_Enable(&motor[2], MOTOR_STATUS_DISABLE);
-	
   /* Infinite loop */
   for(;;)
   {
+		/* Obtain speed from nrf24L01+ packet */
     setSpeed(rxBuffer, speed, direction);
-		speed[3] = 2 * M_PI;
+		
     for (uint8_t i = 0; i < 4; i++)
     {
+			/* Execute open loop (Motor_OLDrive) or closed loop (Motor_CLDrive) routine */
       Motor_CLDrive(&motor[i], &dacDevice, speed[i]);
     }
     osDelayUntil(&timeToWait, 1);
