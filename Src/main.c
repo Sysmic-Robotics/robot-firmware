@@ -677,13 +677,15 @@ void DriveFunction(void const * argument)
 	/* Init PID sampler */
   uint32_t timeToWait = osKernelSysTick();
 	
-	/* Init DAC: 2.0[V] ref */
-  MAX581x_Handler_t dacDevice;
-  MAX581x_Init(&dacDevice, &hi2c1, MAX581x_REF_20);
-  MAX581x_Code(&dacDevice, MAX581x_OUTPUT_A, 0.0);
-	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_B, 0.0);
-	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_C, 0.0);
-	MAX581x_Code(&dacDevice, MAX581x_OUTPUT_D, 0.0);
+	/* Init wheels motors DAC: 2.0[V] ref */
+  MAX581x_Handler_t driveDAC;
+  MAX581x_Init(&driveDAC, &hi2c1, MAX581x_REF_20);
+  MAX581x_Code(&driveDAC, MAX581x_OUTPUT_A, 0.0);
+	MAX581x_Code(&driveDAC, MAX581x_OUTPUT_B, 0.0);
+	MAX581x_Code(&driveDAC, MAX581x_OUTPUT_C, 0.0);
+	MAX581x_Code(&driveDAC, MAX581x_OUTPUT_D, 0.0);
+	
+	/* Init dribbler motor DAC: 2.0[V] ref */
 	
 	/* Config motors GPIO and TIM */
 	/* Motor 1 */
@@ -768,7 +770,7 @@ void DriveFunction(void const * argument)
     for (uint8_t i = 0; i < 4; i++)
     {
 			/* Execute open loop (Motor_OLDrive) or closed loop (Motor_CLDrive) routine */
-      Motor_CLDrive(&motor[i], &dacDevice, speed[i]);
+      Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
     }
     osDelayUntil(&timeToWait, 1);
   }
