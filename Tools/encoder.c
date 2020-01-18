@@ -16,25 +16,25 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 	if(encoderDevice->enable != ENCODER_STATUS_ENABLE)
 		return 0;
 	/* Tigers */
+	/*
 	int32_t encPos = (int32_t)*encoderDevice->count;
 	float encPosF = encPos;
 	encPosF /= ENCODER_CPR;
 
 	float speed = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
-	/*
-	if(velocity > 1 || velocity < -1)
-	{
-		velocity = 0;
-	}
-	velocity *= (60 / sampleTime);
-	*/
 	encoderDevice->oldPos = encPosF;
 	if(encoderDevice->minSpeed != 0.0f && fabs(speed) < encoderDevice->minSpeed)
 	{
 		speed = 0.0f;
 	}
+	*/
+	/* TESTING */
+	int16_t encPos = (int16_t)*encoderDevice->count;
+	float encPosF = fabs((float)encPos) < 2.0 ? 0.0 : (float)encPos;
 
-	return speed;
+	*encoderDevice->count = 0;
+
+	return encPosF;
 }
 
 /* Tigers angle normalizer */

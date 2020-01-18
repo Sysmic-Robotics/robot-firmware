@@ -70,6 +70,8 @@ typedef struct {
 
 	float outputMax;
 	float outputMin;
+	
+	float integralMax;
 
 	float sampleTime;
 } PID_Params_t;

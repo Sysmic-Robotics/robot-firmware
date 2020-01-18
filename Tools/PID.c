@@ -37,13 +37,13 @@ void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure)
 	pid->error = pid->ref - measure;
 
 	pid->integral += pid->error * pid->params.Ki;
-	if (pid->integral > pid->params.outputMax)
+	if (pid->integral > pid->params.integralMax)
 	{
-		pid->integral = pid->params.outputMax;
+		pid->integral = pid->params.integralMax;
 	}
-	else if (pid->integral < pid->params.outputMin)
+	else if (pid->integral < -pid->params.integralMax)
 	{
-		pid->integral = pid->params.outputMin;
+		pid->integral = -pid->params.integralMax;
 	}
 	
 	float measDiff = measure - pid->lastMeasure;

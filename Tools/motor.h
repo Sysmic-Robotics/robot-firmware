@@ -74,6 +74,8 @@ enum {
 #define WHEEL_RADIO				0.025f
 #define WHEEL_GEAR_RATIO		51.0f / 17.0f
 
+#define SPEED_CNT_RATIO			(WHEEL_GEAR_RATIO * ENCODER_CPR) / (1000.0f * 2 * M_PI * WHEEL_RADIO) // [m/s] -> [count/ms]
+
 enum {
 	MOTOR_BRAKE_DISABLE = 0,
 	MOTOR_BRAKE_ENABLE
