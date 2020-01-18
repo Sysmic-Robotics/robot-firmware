@@ -37,25 +37,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ROBOT_RADIO					  0.18f / 2.0f // 0.083648f
+#define ROBOT_RADIO					  0.08215 //0.18f / 2.0f
 #define ANGULAR_SPEED_FACTOR	30.0f
 #define DRIBBLER_CONV(x)		  x * (1023.0f / 7.0f)
-
-#define PID_SAMPLE_TIME				1.0f	// [ms]
-
-#define DS_GPIO_1							GPIOJ
-#define DS_GPIO_2							GPIOJ
-#define DS_GPIO_3							GPIOI
-#define DS_GPIO_4							GPIOB
-#define DS_GPIO_5							GPIOC
-#define DS_GPIO_6							GPIOH
-
-#define DS_PIN_1							GPIO_PIN_1
-#define DS_PIN_2							GPIO_PIN_0
-#define DS_PIN_3							GPIO_PIN_15
-#define DS_PIN_4							GPIO_PIN_2
-#define DS_PIN_5							GPIO_PIN_4
-#define DS_PIN_6							GPIO_PIN_4
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -152,10 +136,10 @@ int main(void)
 	MX_TIM8_Init();
 	/* USER CODE BEGIN 2 */
 	/* Define wheels angles in motor.h */
-	kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO * ANGULAR_SPEED_FACTOR;
-	kinematic[1][0] = sin(WHEEL_ANGlE_2); kinematic[1][1] = -cos(WHEEL_ANGlE_2); kinematic[1][2] = -ROBOT_RADIO * ANGULAR_SPEED_FACTOR;
-	kinematic[2][0] = sin(WHEEL_ANGlE_3); kinematic[2][1] = -cos(WHEEL_ANGlE_3); kinematic[2][2] = -ROBOT_RADIO * ANGULAR_SPEED_FACTOR;
-	kinematic[3][0] = sin(WHEEL_ANGlE_4); kinematic[3][1] = -cos(WHEEL_ANGlE_4); kinematic[3][2] = -ROBOT_RADIO * ANGULAR_SPEED_FACTOR;
+	kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO;
+	kinematic[1][0] = sin(WHEEL_ANGlE_2); kinematic[1][1] = -cos(WHEEL_ANGlE_2); kinematic[1][2] = -ROBOT_RADIO;
+	kinematic[2][0] = sin(WHEEL_ANGlE_3); kinematic[2][1] = -cos(WHEEL_ANGlE_3); kinematic[2][2] = -ROBOT_RADIO;
+	kinematic[3][0] = sin(WHEEL_ANGlE_4); kinematic[3][1] = -cos(WHEEL_ANGlE_4); kinematic[3][2] = -ROBOT_RADIO;
 
 	for (uint8_t i = 0; i < 10; i++)
 	{
@@ -798,13 +782,7 @@ void DriveFunction(void const * argument)
 	/* Init PID sampler */
 	uint32_t timeToWait = osKernelSysTick();
 	/* Init robotID */
-	robotID = HAL_GPIO_ReadPin(DS_GPIO_1, DS_PIN_1)|
-						HAL_GPIO_ReadPin(DS_GPIO_2, DS_PIN_2) << 1|
-						HAL_GPIO_ReadPin(DS_GPIO_3, DS_PIN_3) << 2|
-						HAL_GPIO_ReadPin(DS_GPIO_4, DS_PIN_4) << 3|
-						HAL_GPIO_ReadPin(DS_GPIO_5, DS_PIN_5) << 4|
-						HAL_GPIO_ReadPin(DS_GPIO_6, DS_PIN_6) << 5;
-	
+	robotID = Board_GetID();
 	
 	/* Init wheels motors DAC: 2.0[V] ref */
 	MAX581x_Handler_t driveDAC;

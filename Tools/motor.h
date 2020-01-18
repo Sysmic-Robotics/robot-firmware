@@ -61,20 +61,23 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1			60.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2			130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3			-130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4			-60.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_1					60.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					130.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					-130.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					-60.0f * M_PI / 180.0f
 
+/* Open loop */
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
-#define MOTOR_SPEED_CONV		4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
+#define MOTOR_SPEED_CONV			4095.0f / MOTOR_NOMINAL_SPEED // remove 0.25f factor to operate on max range 4095.0. Division setted on debug sessions
 
 #define WHEEL_MAX_SPEED_RPS		15.0f
 #define WHEEL_MAX_SPEED_RAD		2.0f * M_PI * WHEEL_MAX_SPEED_RPS
-#define WHEEL_RADIO				0.025f
-#define WHEEL_GEAR_RATIO		51.0f / 17.0f
+#define WHEEL_RADIO						0.025f
+#define WHEEL_GEAR_RATIO			51.0f / 17.0f
 
-#define SPEED_CNT_RATIO			(WHEEL_GEAR_RATIO * ENCODER_CPR) / (1000.0f * 2 * M_PI * WHEEL_RADIO) // [m/s] -> [count/ms]
+#define PID_SAMPLE_TIME				1.0f	// [ms]
+
+#define SPEED_CNT_RATIO				(WHEEL_GEAR_RATIO * ENCODER_CPR) / ((PID_SAMPLE_TIME * 1000.0f) * 2.0f * M_PI * WHEEL_RADIO) // [m/s] -> [count/ms]
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,
