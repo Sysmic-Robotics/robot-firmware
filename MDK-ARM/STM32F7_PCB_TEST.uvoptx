@@ -180,6 +180,21 @@
           <WinNumber>1</WinNumber>
           <ItemText>packageMiss</ItemText>
         </Ww>
+        <Ww>
+          <count>6</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>dribblerSel,0x0A</ItemText>
+        </Ww>
+        <Ww>
+          <count>7</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>kickDelay</ItemText>
+        </Ww>
+        <Ww>
+          <count>8</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>kickSel</ItemText>
+        </Ww>
       </WatchWindow1>
       <WatchWindow2>
         <Ww>

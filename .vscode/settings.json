@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "sysmic_ll_i2c.h": "c"
-    }
+    },
+    "python.pythonPath": "C:\\Users\\pablo\\AppData\\Local\\Programs\\Python\\Python38-32\\python.exe"
 }
