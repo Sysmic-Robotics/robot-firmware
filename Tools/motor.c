@@ -42,6 +42,11 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
 	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
+	
+	if(fabs(motorDevice->pid.output) < 4.0)
+	{
+		motorDevice->pid.output = 0.0;
+	}
 
 	Motor_SetVoltage(motorDevice, dacDevice, motorDevice->pid.output);
 }

@@ -178,22 +178,22 @@
         <Ww>
           <count>5</count>
           <WinNumber>1</WinNumber>
-          <ItemText>packageMiss</ItemText>
+          <ItemText>dribblerSel,0x0A</ItemText>
         </Ww>
         <Ww>
           <count>6</count>
           <WinNumber>1</WinNumber>
-          <ItemText>dribblerSel,0x0A</ItemText>
+          <ItemText>kickDelay</ItemText>
         </Ww>
         <Ww>
           <count>7</count>
           <WinNumber>1</WinNumber>
-          <ItemText>kickDelay</ItemText>
+          <ItemText>kickSel</ItemText>
         </Ww>
         <Ww>
           <count>8</count>
           <WinNumber>1</WinNumber>
-          <ItemText>kickSel</ItemText>
+          <ItemText>0.15f</ItemText>
         </Ww>
       </WatchWindow1>
       <WatchWindow2>

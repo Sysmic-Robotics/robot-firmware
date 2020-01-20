@@ -38,6 +38,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ROBOT_RADIO					  0.08215 //0.18f / 2.0f
+#define ROBOT_MAX_LINEAR_ACC	0.15f
+
 #define ANGULAR_SPEED_FACTOR	30.0f
 #define DRIBBLER_CONV(x)		  x * (1023.0f / 7.0f)
 
@@ -66,6 +68,7 @@ osThreadId radioTaskHandle;
 osThreadId kickTaskHandle;
 osMessageQId kickQueueHandle;
 /* USER CODE BEGIN PV */
+osMessageQId nrf24CheckHandle;
 uint32_t checkSPI = 0;
 
 /* USER CODE END PV */
@@ -173,7 +176,8 @@ int main(void)
   kickQueueHandle = osMessageCreate(osMessageQ(kickQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
-	/* add queues, ... */
+	osMessageQDef(nrf24Check, 16, uint16_t);
+  nrf24CheckHandle = osMessageCreate(osMessageQ(nrf24Check), NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -186,7 +190,7 @@ int main(void)
   radioTaskHandle = osThreadCreate(osThread(radioTask), NULL);
 
   /* definition and creation of kickTask */
-  osThreadDef(kickTask, KickFunction, osPriorityIdle, 0, 128);
+  osThreadDef(kickTask, KickFunction, osPriorityBelowNormal, 0, 128);
   kickTaskHandle = osThreadCreate(osThread(kickTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -744,12 +748,31 @@ static void MX_GPIO_Init(void)
 float v_vel[3];
 void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 {
-	/* Velocities vector: vx, vy and vr respectively */
+	/* Last velocities */
+	float prv_Vx = v_vel[0], prv_Vy = v_vel[1];
 	
+	/* Velocities vector: vx, vy and vr respectively */
 	v_vel[0] = (buffer[1] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F)) / 100.0f;
 	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F)) / 100.0f;
 	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 1000.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 1000.0f;
 
+	/* Check if acceleration is not too high */
+	float Ax = v_vel[0] - prv_Vx, Ay = v_vel[1] - prv_Vy;
+	float acc_sum = Ax * Ax + Ay * Ay;
+	acc_sum = sqrt(acc_sum);
+	
+	float norm_Ax = Ax / acc_sum, norm_Ay = Ay / acc_sum;
+	
+	if(acc_sum > ROBOT_MAX_LINEAR_ACC)
+	{
+		acc_sum = ROBOT_MAX_LINEAR_ACC;
+		Ax = norm_Ax * acc_sum;
+		Ay = norm_Ay * acc_sum;
+		
+		v_vel[0] = prv_Vx + Ax;
+		v_vel[1] = prv_Vy + Ay;
+	}
+	
 	for (uint8_t i = 0; i < 4; i++)
 	{
 		/* Temporal speed variable. Calculate each wheel speed respect to robot kinematic model */
@@ -884,12 +907,12 @@ void DriveFunction(void const * argument)
 	
 	/* Config PID */
 	PID_Params_t pidParams;
-	pidParams.Kp = 28.0f;
-	pidParams.Ki = 6.5f;
+	pidParams.Kp = 12.0f;
+	pidParams.Ki = 4.5f;
 	pidParams.Kd = 0.0f;
 	pidParams.outputMax = (float)(/*WHEEL_MAX_SPEED_RAD * 10.0f*/ 4095.0f);
 	pidParams.outputMin = (float)(/*-WHEEL_MAX_SPEED_RAD * 10.0f*/ -4095.0f);
-	pidParams.integralMax = pidParams.outputMax / 4.0f;
+	pidParams.integralMax = pidParams.outputMax / 10.0f;
 	pidParams.sampleTime = PID_SAMPLE_TIME / 1000.0f;
 
 	/* Enable motors and disable brake */
@@ -899,15 +922,10 @@ void DriveFunction(void const * argument)
 		Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
 		PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
 	}
-	//Motor_Enable(&motor[1], MOTOR_STATUS_ENABLE);
+	//Motor_Enable(&motor[0], MOTOR_STATUS_ENABLE);
 	/* Infinite loop */
 	for(;;)
-	{
-		/* Obtain speed from nrf24L01+ packet */
-		setSpeed(rxBuffer + 5 * robotID, speed, direction);
-		dribblerSel = getDribblerSpeed(rxBuffer + 5 * robotID);
-		kickSel = getKickerStatus(rxBuffer + 5 * robotID);
-		
+	{						
 		for (uint8_t i = 0; i < 4; i++)
 		{
 			/* Execute open loop (Motor_OLDrive) or closed loop (Motor_CLDrive) routine */
@@ -928,6 +946,7 @@ void DriveFunction(void const * argument)
 			kickDelay++;
 		}
 		
+		osMessagePut(nrf24CheckHandle, 0, 0);
 		osDelayUntil(&timeToWait, (uint32_t)PID_SAMPLE_TIME);
 	}
   /* USER CODE END 5 */ 
@@ -962,16 +981,21 @@ void RadioFunction(void const * argument)
 	/* Infinite loop */
 	for(;;)
 	{
+		osMessageGet(nrf24CheckHandle, osWaitForever);
 		status = nRF24_GetStatus();
+		
 		//if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
-		if(nRF24_GetStatus() & nRF24_FLAG_RX_DR)
+		if(status & nRF24_FLAG_RX_DR)
 		{
 			nRF24_ReadPayload(rxBuffer, &rxLen);
 			nRF24_FlushRX();
 			nRF24_ClearIRQFlags();
+						
+			/* Obtain speed from nrf24L01+ packet */
+			setSpeed(rxBuffer + 5 * robotID, speed, direction);
+			dribblerSel = getDribblerSpeed(rxBuffer + 5 * robotID);
+			kickSel = getKickerStatus(rxBuffer + 5 * robotID);		
 		}
-		
-		osDelay(16);
 	}
   /* USER CODE END RadioFunction */
 }
