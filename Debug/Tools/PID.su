@@ -1,0 +1,5 @@
+../Tools/PID.c:14:6:PID_Init	24	static
+../Tools/PID.c:28:6:PID_CloseLoop	32	static
+../Tools/PID.c:64:6:PID_UpdateController	32	static
+../Tools/PID.c:73:6:PID_UpdateLimits	24	static
+../Tools/PID.c:79:6:PID_Enable	16	static

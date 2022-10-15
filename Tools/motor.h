@@ -107,8 +107,8 @@ typedef struct Motor_Handler
 	Motor_GPIO_t brakePin;
 
 	uint8_t outputID;
-	float refSpeed;
-	float measSpeed;
+	volatile float refSpeed;
+	volatile float measSpeed;
 
 	uint16_t voltage;
 	Motor_Status_t enable;

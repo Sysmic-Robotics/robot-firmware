@@ -49,7 +49,7 @@
 #include "stm32f7xx_hal.h"
 #endif
 
-#include "stm32f4xx_hal.h"
+#include "stm32f7xx_hal.h"
 
 #define MAX5814_ADDRESS                 0x00
 #define MAX5814_WRITE_OPERATION         0x00

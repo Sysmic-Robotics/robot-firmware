@@ -1,0 +1,12 @@
+../Tools/MAX5814.c:14:6:MAX5814_WriteCommand	24	static
+../Tools/MAX5814.c:20:6:MAX5814_ReadCommand	24	static
+../Tools/MAX5814.c:26:6:MAX5814_Init	24	static
+../Tools/MAX5814.c:34:6:MAX5814_Config	16	static
+../Tools/MAX5814.c:43:6:MAX5814_Reference	16	static
+../Tools/MAX5814.c:52:6:MAX5814_Code	16	static
+../Tools/MAX5814.c:61:6:MAX5814_Load	16	static
+../Tools/MAX5814.c:70:6:MAX5814_CodeLoadAll	16	static
+../Tools/MAX5814.c:79:6:MAX5814_CodeLoad	16	static
+../Tools/MAX5814.c:88:6:MAX5814_CodeAll	16	static
+../Tools/MAX5814.c:97:6:MAX5814_LoadAll	16	static
+../Tools/MAX5814.c:106:6:MAX5814_CodeAllLoadAll	16	static
