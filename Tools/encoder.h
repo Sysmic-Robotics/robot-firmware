@@ -53,7 +53,7 @@
 #include "stm32f7xx_hal.h"
 #include "math.h"
 
-#define M_PI 					3.14159265358979323846f
+// #define M_PI 					3.14159265358979323846f
 #define ENCODER_CPR		4.0f * 2048.0f
 
 typedef enum {
