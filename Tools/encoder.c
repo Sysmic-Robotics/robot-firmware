@@ -33,8 +33,10 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 	float encPosF = fabs((float)encPos) < 2.0f ? 0.0f : (float)encPos;
 
 	*encoderDevice->count = 0;
+	float speed = encPosF * 2 * M_PI / (ENCODER_CPR * sampleTime);
 
-	return encPosF;
+	//return encPosF;
+	return speed;
 }
 
 /* Tigers angle normalizer */

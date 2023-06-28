@@ -39,7 +39,7 @@
 #endif
 
 /* STM32F7xx */
-#if defined(STM32F7xx) || defined(STM32F7XX)
+#if defined(STM32F767xx) || defined(STM32F7XX)
 #ifndef STM32F7xx
 #define STM32F7xx
 #endif
@@ -50,21 +50,19 @@
 #include "stm32f7xx_hal.h"
 #endif
 
-#include "stm32f7xx_hal.h"
 #include "encoder.h"
 #include "pid.h"
 #include "MAX581x.h"
-#include "math.h"
 
 enum {
 	WHEEL_P_ROTATION = 0,
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					55.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_1					60.0f * M_PI / 180.0f
 #define WHEEL_ANGlE_2					130.0f * M_PI / 180.0f
 #define WHEEL_ANGlE_3					-130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					-55.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					-60.0f * M_PI / 180.0f
 
 /* Open loop */
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
@@ -77,7 +75,8 @@ enum {
 
 #define PID_SAMPLE_TIME				1.0f	// [ms]
 
-#define SPEED_CNT_RATIO				(WHEEL_GEAR_RATIO * ENCODER_CPR) / ((PID_SAMPLE_TIME * 1000.0f) * 2.0f * M_PI * WHEEL_RADIO) // [m/s] -> [count/(pid_samples * ms)]
+//#define SPEED_CNT_RATIO				(WHEEL_GEAR_RATIO * ENCODER_CPR) / ((PID_SAMPLE_TIME * 1000.0f) * 2.0f * M_PI * WHEEL_RADIO) // [m/s] -> [count/(pid_samples * ms)]
+#define SPEED_CNT_RATIO       (WHEEL_GEAR_RATIO) / (WHEEL_RADIO) // [m/s] -> [rad/s]
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,

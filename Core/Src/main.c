@@ -27,6 +27,7 @@
 #include "board.h"
 #include "string.h"
 #include "motor.h"
+#include "vl6180x.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,12 +38,15 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ROBOT_RADIO					  0.08215 //0.18f / 2.0f
-#define ROBOT_MAX_LINEAR_ACC	0.15f
+#define ROBOT_MAX_LINEAR_ACC	0.1f
 
 #define ANGULAR_SPEED_FACTOR	30.0f
 #define DRIBBLER_CONV(x)		  x * (1023.0f / 7.0f)
 
-const uint16_t Dribbler_SpeedSet[] = {0, 450, 492, 585, 575, 617, 658, 700};
+#define VL6180X_THRESHOLD     65
+#define VL6180X_SAMPLE_TIME   50 //[ms]
+
+const uint16_t Dribbler_SpeedSet[] = {0, 450, 492, 575, 585, 617, 658, 700};
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,6 +58,7 @@ const uint16_t Dribbler_SpeedSet[] = {0, 450, 492, 585, 575, 617, 658, 700};
 
 I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c2;
+I2C_HandleTypeDef hi2c3;
 
 SPI_HandleTypeDef hspi1;
 
@@ -67,6 +72,7 @@ osThreadId radioTaskHandle;
 osThreadId kickTaskHandle;
 osMessageQId kickQueueHandle;
 /* USER CODE BEGIN PV */
+osThreadId ballDetectorTaskHandle;
 osMessageQId nrf24CheckHandle;
 uint32_t checkSPI = 0;
 
@@ -82,27 +88,41 @@ static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_TIM8_Init(void);
+static void MX_I2C3_Init(void);
 void DriveFunction(void const * argument);
 void RadioFunction(void const * argument);
 void KickFunction(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* TODO: make object of wheel/motor in open loop */
+void BallDetectorFunction(void const * argument);
 void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 uint8_t rxBuffer[32];
-uint8_t rxAddr[5];
-uint8_t rxLen;
+uint8_t rx_len;
 
 uint8_t status;
 uint8_t direction[4];
 float speed[4];
 float kinematic[4][3];
 Motor_Handler_t motor[4];
-uint16_t robotID;
+uint16_t robot_id;
+
+float dribbler_speed = 0.0f;
+uint8_t dribbler_sel = 0;
+uint8_t kick_sel = 0;
+uint8_t kick_flag = 0;
+uint16_t kick_delay = 0;
+
+nRF24_Handler_t nrf_device;
+uint8_t tx_node_addr[5] = {'s', 'y', 's', 't', 'x'};
+uint8_t rx_node_addr[5] = {'s', 'y', 's', 'r', 'x'};
+
+VL6180X_Handler_t range_sensor;
+uint8_t ball_posession = 0x00;
 /* USER CODE END 0 */
 
 /**
@@ -140,6 +160,7 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM5_Init();
   MX_TIM8_Init();
+  MX_I2C3_Init();
   /* USER CODE BEGIN 2 */
 	/* Define wheels angles in motor.h */
 	kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO;
@@ -192,7 +213,8 @@ int main(void)
   kickTaskHandle = osThreadCreate(osThread(kickTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
-	/* add threads, ... */
+	osThreadDef(ballDetectorTask, BallDetectorFunction, osPriorityLow, 0, 128);
+  ballDetectorTaskHandle = osThreadCreate(osThread(ballDetectorTask), NULL);
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -358,6 +380,54 @@ static void MX_I2C2_Init(void)
   /* USER CODE BEGIN I2C2_Init 2 */
 
   /* USER CODE END I2C2_Init 2 */
+
+}
+
+/**
+  * @brief I2C3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C3_Init(void)
+{
+
+  /* USER CODE BEGIN I2C3_Init 0 */
+
+  /* USER CODE END I2C3_Init 0 */
+
+  /* USER CODE BEGIN I2C3_Init 1 */
+
+  /* USER CODE END I2C3_Init 1 */
+  hi2c3.Instance = I2C3;
+  hi2c3.Init.Timing = 0x6000030D;
+  hi2c3.Init.OwnAddress1 = 0;
+  hi2c3.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c3.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c3.Init.OwnAddress2 = 0;
+  hi2c3.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c3.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c3.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c3, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c3, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C3_Init 2 */
+
+  /* USER CODE END I2C3_Init 2 */
 
 }
 
@@ -628,10 +698,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_11, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10, GPIO_PIN_RESET);
@@ -692,19 +762,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : PJ4 PJ6 PJ7 PJ8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
+
   /*Configure GPIO pin : PB12 */
   GPIO_InitStruct.Pin = GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PJ6 PJ7 PJ8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOJ, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA8 PA9 PA10 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
@@ -753,7 +823,7 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 	/* Velocities vector: vx, vy and vr respectively */
 	v_vel[0] = (buffer[1] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F)) / 100.0f;
 	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F)) / 100.0f;
-	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 1000.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 1000.0f;
+	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 100.0f;
 
 	/* Check if acceleration is not too high */
 	float Ax = v_vel[0] - prv_Vx, Ay = v_vel[1] - prv_Vy;
@@ -788,7 +858,7 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 	}
 }
 
-uint8_t getDribblerSpeed(uint8_t *buffer)
+uint8_t getDribbler_speed(uint8_t *buffer)
 {
 	/* Extract info from data packet */
 	uint8_t dribbler_vel = (buffer[0] & 0x1C) >> 2;
@@ -799,15 +869,38 @@ uint8_t getDribblerSpeed(uint8_t *buffer)
 uint8_t getKickerStatus(uint8_t *buffer)
 {
 	/* Extract info from data packet */
-	uint8_t kick_stat = buffer[0] & 0x01;
+	uint8_t kick_stat = buffer[0] & 0x02 ? 0x01 : 0x00;
 
 	return kick_stat;
 }
 
-float dribblerSpeed = 0.0f;
-uint8_t dribblerSel = 0;
-uint8_t kickSel = 0;
-uint16_t kickDelay = 0;
+uint16_t ball_range;
+uint16_t ball_accum;
+uint8_t ball_meas_set[10];
+
+void BallDetectorFunction(void const * argument) {
+  //uint32_t timeToWait = osKernelSysTick();
+  VL6180X_Init(&range_sensor, &hi2c3, VL6180X_DEFAULT_I2C_ADDR);
+  ball_range = VL6180X_ReadRange(&range_sensor);
+  memset(ball_meas_set, ball_range, 10);
+
+  for (;;) {
+    ball_meas_set[0] = VL6180X_ReadRange(&range_sensor);
+    ball_accum = ball_meas_set[0];
+    for (uint8_t i = 9; i > 0; i--) {
+      ball_accum += ball_meas_set[i];
+      ball_meas_set[i] = ball_meas_set[i - 1];
+    }
+    ball_range = ball_accum / 10;
+    if (ball_range < VL6180X_THRESHOLD) {
+      ball_posession = 0x01;
+    }
+    else ball_posession = 0x00;
+    osDelay(1);
+    //osDelayUntil(&timeToWait, (uint32_t)VL6180X_SAMPLE_TIME);
+  }
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_DriveFunction */
@@ -822,8 +915,8 @@ void DriveFunction(void const * argument)
   /* USER CODE BEGIN 5 */
 	/* Init PID sampler */
 	uint32_t timeToWait = osKernelSysTick();
-	/* Init robotID */
-	robotID = Board_GetID();
+	/* Init robot_id */
+	robot_id = Board_GetID();
 	
 	/* Init wheels motors DAC: 2.0[V] ref */
 	MAX581x_Handler_t driveDAC;
@@ -905,7 +998,7 @@ void DriveFunction(void const * argument)
 	pidParams.Kd = 0.0f;
 	pidParams.outputMax = (float)(/*WHEEL_MAX_SPEED_RAD * 10.0f*/ 4095.0f);
 	pidParams.outputMin = (float)(/*-WHEEL_MAX_SPEED_RAD * 10.0f*/ -4095.0f);
-	pidParams.integralMax = pidParams.outputMax / 10.0f;
+	pidParams.integralMax = pidParams.outputMax / 5.0f;
 	pidParams.sampleTime = PID_SAMPLE_TIME / 1000.0f;
 
 	/* Enable motors and disable brake */
@@ -915,6 +1008,7 @@ void DriveFunction(void const * argument)
 		Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
 		PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
 	}
+
 	//Motor_Enable(&motor[0], MOTOR_STATUS_ENABLE);
 	/* Infinite loop */
 	for(;;)
@@ -925,19 +1019,12 @@ void DriveFunction(void const * argument)
 			Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
 			
 			/* TODO: make dribbler files, variable speeds */
-			MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribblerSel]);
-			
-			if(kickDelay >= 4000 && kickSel == 0x01)
-			{
-				osMessagePut(kickQueueHandle, 0, 0);
-			}
+			MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler_sel]);
 		}
-		
-		/* To check if kicker is charged */
-		if(kickDelay < 4000)
-		{
-			kickDelay++;
-		}
+
+    if(ball_posession && kick_sel && kick_flag) {
+      osMessagePut(kickQueueHandle, 0, 0);
+    }   
 		
 		osMessagePut(nrf24CheckHandle, 0, 0);
 		osDelayUntil(&timeToWait, (uint32_t)PID_SAMPLE_TIME);
@@ -952,42 +1039,42 @@ void DriveFunction(void const * argument)
 * @retval None
 */
 
-uint16_t packageMiss = 0;
 /* USER CODE END Header_RadioFunction */
 void RadioFunction(void const * argument)
 {
   /* USER CODE BEGIN RadioFunction */
-	nRF24_GPIO_Init();
-	nRF24_Init();
-	nRF24_SetRXPipe(nRF24_PIPE0, nRF24_AA_OFF, 30);
-	nRF24_DisableAA(nRF24_PIPETX);
-	nRF24_SetPowerMode(nRF24_PWR_UP);
-	nRF24_SetOperationalMode(nRF24_MODE_RX);
+  nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
+  nRF24_Init(&nrf_device);
+  //nRF24_SetAddr(&nrf_device, nRF24_PIPE1, rx_node_addr);
+  nRF24_SetRXPipe(&nrf_device, nRF24_PIPE0, nRF24_AA_OFF, 30);
+  nRF24_DisableAA(&nrf_device, nRF24_PIPETX);
+  nRF24_SetPowerMode(&nrf_device, nRF24_PWR_UP);
+  nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
+  nRF24_RX_ON(&nrf_device);
 	/*
 	checkSPI = nRF24_Check();
 	memset(rxAddr, 0xE7, 5);
 	nRF24_SetAddr(0, rxAddr);
 	*/
-	nRF24_RX_ON();	
 	
-	memset(rxBuffer, 0, 30);
+	memset(nrf_device.rx_data, 0, 30);
 	/* Infinite loop */
 	for(;;)
 	{
 		osMessageGet(nrf24CheckHandle, osWaitForever);
-		status = nRF24_GetStatus();
+		status = nRF24_GetStatus(&nrf_device);
 		
 		//if(nRF24_GetStatus_RXFIFO() == nRF24_STATUS_RXFIFO_DATA)
 		if(status & nRF24_FLAG_RX_DR)
 		{
-			nRF24_ReadPayload(rxBuffer, &rxLen);
-			nRF24_FlushRX();
-			nRF24_ClearIRQFlags();
+			nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
+			nRF24_FlushRX(&nrf_device);
+			nRF24_ClearIRQFlags(&nrf_device);
 						
 			/* Obtain speed from nrf24L01+ packet */
-			setSpeed(rxBuffer + 5 * robotID, speed, direction);
-			dribblerSel = getDribblerSpeed(rxBuffer + 5 * robotID);
-			kickSel = getKickerStatus(rxBuffer + 5 * robotID);		
+			setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
+			dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
+			kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);		
 		}
 	}
   /* USER CODE END RadioFunction */
@@ -1006,12 +1093,17 @@ void KickFunction(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_SET);
+    osDelay(4000);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_RESET);
+    kick_flag = 0x01;
+
 		osMessageGet(kickQueueHandle, osWaitForever);
 		
 		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_SET);
-		osDelay(1);
+		osDelay(10);
 		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_RESET);
-		kickDelay = 0;
+		kick_flag = 0x00;
   }
   /* USER CODE END KickFunction */
 }
