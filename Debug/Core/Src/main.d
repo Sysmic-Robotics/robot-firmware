@@ -46,12 +46,13 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
- ../Core/Inc/nrf24.h ../Core/Inc/nrf24_hal.h \
+ C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/nrf24.h \
  C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/board.h \
  C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/motor.h \
  C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/encoder.h \
  C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/pid.h \
- C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/MAX581x.h
+ C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/MAX581x.h \
+ C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/vl6180x.h
 ../Core/Inc/main.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h:
 ../Core/Inc/stm32f7xx_hal_conf.h:
@@ -100,10 +101,10 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
-../Core/Inc/nrf24.h:
-../Core/Inc/nrf24_hal.h:
+C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/nrf24.h:
 C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/board.h:
 C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/motor.h:
 C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/encoder.h:
 C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/pid.h:
 C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/MAX581x.h:
+C:/Users/Pablo/Documents/Sysmic/robot-firmware/Tools/vl6180x.h:
