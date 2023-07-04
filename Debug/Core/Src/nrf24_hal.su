@@ -1,2 +1,0 @@
-../Core/Src/nrf24_hal.c:16:6:nRF24_GPIO_Init	8	static
-../Core/Src/nrf24_hal.c:22:9:nRF24_LL_RW	32	static
