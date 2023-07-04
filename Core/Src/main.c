@@ -37,14 +37,16 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ROBOT_RADIO					  0.08215 //0.18f / 2.0f
-#define ROBOT_MAX_LINEAR_ACC	0.1f
+#define ROBOT_RADIO					    0.08215 //0.18f / 2.0f
+#define ROBOT_MAX_LINEAR_ACC	  0.1f
 
-#define ANGULAR_SPEED_FACTOR	30.0f
-#define DRIBBLER_CONV(x)		  x * (1023.0f / 7.0f)
+#define ANGULAR_SPEED_FACTOR	  30.0f
+#define DRIBBLER_CONV(x)		    x * (1023.0f / 7.0f)
 
-#define VL6180X_THRESHOLD     65
-#define VL6180X_SAMPLE_TIME   50 //[ms]
+#define VL6180X_THRESHOLD       65
+#define VL6180X_SAMPLE_TIME     50 //[ms]
+
+#define nRF24L01_SYSMIC_CHANNEL 0x6A
 
 const uint16_t Dribbler_SpeedSet[] = {0, 450, 492, 575, 585, 617, 658, 700};
 /* USER CODE END PD */
@@ -1045,7 +1047,8 @@ void RadioFunction(void const * argument)
   /* USER CODE BEGIN RadioFunction */
   nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
   nRF24_Init(&nrf_device);
-  //nRF24_SetAddr(&nrf_device, nRF24_PIPE1, rx_node_addr);
+  nRF24_SetAddr(&nrf_device, nRF24_PIPE0, rx_node_addr);
+  nRF24_SetRFChannel(&nrf_device, nRF24L01_SYSMIC_CHANNEL);
   nRF24_SetRXPipe(&nrf_device, nRF24_PIPE0, nRF24_AA_OFF, 30);
   nRF24_DisableAA(&nrf_device, nRF24_PIPETX);
   nRF24_SetPowerMode(&nrf_device, nRF24_PWR_UP);

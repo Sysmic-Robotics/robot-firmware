@@ -33,18 +33,16 @@ void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 
 void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
 {
-	if(!motorDevice->enable)
-	{
-		MAX581x_Code(dacDevice, motorDevice->outputID, 0);
-		return;
-	}
+  /*
+  if (motorDevice->refSpeed == 0.0f) Motor_Enable(motorDevice, MOTOR_STATUS_DISABLE);
+  else Motor_Enable(motorDevice, MOTOR_STATUS_ENABLE);
+  */
 	/* Apply PID */
 	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
 	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
 	
-	if(fabs(motorDevice->pid.output) < 4.0)
-	{
+	if(fabs(motorDevice->pid.output) < 4.0)	{
 		motorDevice->pid.output = 0.0;
 	}
 
