@@ -48,6 +48,12 @@
 
 #define nRF24L01_SYSMIC_CHANNEL 0x6A
 
+enum {
+  KICKER_DISCHARGED = 0x00,
+  KICKER_CHARGED,
+  KICKER_START
+};
+
 const uint16_t Dribbler_SpeedSet[] = {0, 450, 492, 575, 585, 617, 658, 700};
 /* USER CODE END PD */
 
@@ -73,6 +79,7 @@ osThreadId driveTaskHandle;
 osThreadId radioTaskHandle;
 osThreadId kickTaskHandle;
 osMessageQId kickQueueHandle;
+osMutexId kickFlagHandle;
 /* USER CODE BEGIN PV */
 osThreadId ballDetectorTaskHandle;
 osMessageQId nrf24CheckHandle;
@@ -118,6 +125,7 @@ uint8_t dribbler_sel = 0;
 uint8_t kick_sel = 0;
 uint8_t kick_flag = 0;
 uint16_t kick_delay = 0;
+uint16_t kick_count = 0;
 
 nRF24_Handler_t nrf_device;
 uint8_t tx_node_addr[5] = {'s', 'y', 's', 't', 'x'};
@@ -179,6 +187,11 @@ int main(void)
 	}
   /* USER CODE END 2 */
 
+  /* Create the mutex(es) */
+  /* definition and creation of kickFlag */
+  osMutexDef(kickFlag);
+  kickFlagHandle = osMutexCreate(osMutex(kickFlag));
+
   /* USER CODE BEGIN RTOS_MUTEX */
 	/* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -193,7 +206,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* definition and creation of kickQueue */
-  osMessageQDef(kickQueue, 16, uint16_t);
+  osMessageQDef(kickQueue, 1, uint16_t);
   kickQueueHandle = osMessageCreate(osMessageQ(kickQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -911,6 +924,8 @@ void BallDetectorFunction(void const * argument) {
 	* @param  argument: Not used 
 	* @retval None
 	*/
+
+osEvent kick_event;
 /* USER CODE END Header_DriveFunction */
 void DriveFunction(void const * argument)
 {
@@ -1003,6 +1018,7 @@ void DriveFunction(void const * argument)
 	pidParams.integralMax = pidParams.outputMax / 5.0f;
 	pidParams.sampleTime = PID_SAMPLE_TIME / 1000.0f;
 
+
 	/* Enable motors and disable brake */
 	for (uint8_t i = 0; i < 4; i++)
 	{
@@ -1024,7 +1040,10 @@ void DriveFunction(void const * argument)
 			MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler_sel]);
 		}
 
-    if(ball_posession && kick_sel && kick_flag) {
+    if(ball_posession && kick_sel && kick_flag == KICKER_CHARGED) {
+      osMutexWait(kickFlagHandle, osWaitForever);
+      kick_flag = KICKER_START;
+      osMutexRelease(kickFlagHandle);
       osMessagePut(kickQueueHandle, 0, 0);
     }   
 		
@@ -1089,6 +1108,7 @@ void RadioFunction(void const * argument)
 * @param argument: Not used
 * @retval None
 */
+osEvent kicker_side;
 /* USER CODE END Header_KickFunction */
 void KickFunction(void const * argument)
 {
@@ -1096,17 +1116,26 @@ void KickFunction(void const * argument)
   /* Infinite loop */
   for(;;)
   {
+
     HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_SET);
     osDelay(4000);
     HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_RESET);
-    kick_flag = 0x01;
 
-		osMessageGet(kickQueueHandle, osWaitForever);
-		
+    osMutexWait(kickFlagHandle, osWaitForever);
+    kick_flag = KICKER_CHARGED;
+    osMutexRelease(kickFlagHandle);
+
+		kicker_side = osMessageGet(kickQueueHandle, osWaitForever);
+
 		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_SET);
 		osDelay(10);
 		HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_RESET);
-		kick_flag = 0x00;
+
+		osMutexWait(kickFlagHandle, osWaitForever);
+    kick_flag = KICKER_DISCHARGED;
+    osMutexRelease(kickFlagHandle);
+
+		kick_count++;
   }
   /* USER CODE END KickFunction */
 }
