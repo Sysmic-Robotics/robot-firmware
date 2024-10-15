@@ -1,0 +1,17 @@
+../Tools/vl6180x.c:18:9:VL6180X_Read8	32	static
+../Tools/vl6180x.c:29:10:VL6180X_Read16	32	static
+../Tools/vl6180x.c:40:6:VL6180X_Write8	32	static
+../Tools/vl6180x.c:50:6:VL6180X_Write16	32	static
+../Tools/vl6180x.c:60:6:VL6180X_Init	24	static
+../Tools/vl6180x.c:82:6:VL6180X_LoadSettings	16	static
+../Tools/vl6180x.c:151:9:VL6180X_ReadRange	24	static
+../Tools/vl6180x.c:181:6:VL6180X_StartRange	16	static
+../Tools/vl6180x.c:198:6:VL6180X_IsRangeComplete	16	static
+../Tools/vl6180x.c:211:6:VL6180X_WaitRangeComplete	16	static
+../Tools/vl6180x.c:226:9:VL6180X_ReadRangeResult	24	static
+../Tools/vl6180x.c:242:6:VL6180X_StartRangeContinuous	24	static
+../Tools/vl6180x.c:262:6:VL6180X_StopRangeContinuous	16	static
+../Tools/vl6180x.c:275:9:VL6180X_ReadRangeStatus	16	static
+../Tools/vl6180x.c:287:7:VL6180X_ReadLux	24	static
+../Tools/vl6180x.c:356:6:VL6180X_SetOffset	16	static
+../Tools/vl6180x.c:368:6:VL6180X_GetID	24	static

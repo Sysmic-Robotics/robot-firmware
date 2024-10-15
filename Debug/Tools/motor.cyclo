@@ -1,0 +1,6 @@
+motor.c:14:6:Motor_Init	1
+motor.c:23:6:Motor_OLDrive	2
+motor.c:34:6:Motor_CLDrive	2
+motor.c:52:6:Motor_Enable	2
+motor.c:65:6:Motor_SetBrake	2
+motor.c:77:6:Motor_SetVoltage	2

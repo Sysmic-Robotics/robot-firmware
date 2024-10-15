@@ -1,0 +1,12 @@
+../Tools/MAX581x.c:3:6:MAX581x_WriteCommand	24	static
+../Tools/MAX581x.c:9:6:MAX581x_ReadCommand	24	static
+../Tools/MAX581x.c:15:6:MAX581x_Init	24	static
+../Tools/MAX581x.c:23:6:MAX581x_Config	16	static
+../Tools/MAX581x.c:32:6:MAX581x_Reference	16	static
+../Tools/MAX581x.c:41:6:MAX581x_Code	16	static
+../Tools/MAX581x.c:50:6:MAX581x_Load	16	static
+../Tools/MAX581x.c:59:6:MAX581x_CodeLoadAll	16	static
+../Tools/MAX581x.c:68:6:MAX581x_CodeLoad	16	static
+../Tools/MAX581x.c:77:6:MAX581x_CodeAll	16	static
+../Tools/MAX581x.c:86:6:MAX581x_LoadAll	16	static
+../Tools/MAX581x.c:95:6:MAX581x_CodeAllLoadAll	16	static

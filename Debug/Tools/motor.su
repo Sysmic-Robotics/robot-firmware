@@ -1,0 +1,6 @@
+../Tools/motor.c:14:6:Motor_Init	16	static
+../Tools/motor.c:23:6:Motor_OLDrive	24	static
+../Tools/motor.c:34:6:Motor_CLDrive	24	static
+../Tools/motor.c:52:6:Motor_Enable	16	static
+../Tools/motor.c:65:6:Motor_SetBrake	16	static
+../Tools/motor.c:77:6:Motor_SetVoltage	24	static

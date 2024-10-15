@@ -16,21 +16,27 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 	if(encoderDevice->enable != ENCODER_STATUS_ENABLE)
 		return 0;
 	/* Tigers */
+	/*
 	int32_t encPos = (int32_t)*encoderDevice->count;
 	float encPosF = encPos;
 	encPosF /= ENCODER_CPR;
 
-	float velocity = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
-	/*
-	if(velocity > 1 || velocity < -1)
-	{
-		velocity = 0;
-	}
-	velocity *= (60 / sampleTime);
-	*/
+	float speed = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
 	encoderDevice->oldPos = encPosF;
+	if(encoderDevice->minSpeed != 0.0f && fabs(speed) < encoderDevice->minSpeed)
+	{
+		speed = 0.0f;
+	}
+	*/
+	/* TESTING */
+	int16_t encPos = (int16_t)*encoderDevice->count;
+	float encPosF = fabs((float)encPos) < 2.0f ? 0.0f : (float)encPos;
 
-	return velocity;
+	*encoderDevice->count = 0;
+	float speed = encPosF * 2 * M_PI / (ENCODER_CPR * sampleTime);
+
+	//return encPosF;
+	return speed;
 }
 
 /* Tigers angle normalizer */
@@ -75,5 +81,5 @@ float mod(float x, float y)
 // wrap [rad] angle to [-PI..PI)
 float AngleNormalize(float a)
 {
-	return mod(a + (float)M_PI, 2 * M_PI) - (float)M_PI;
+	return mod((2 * a + 1) * (float)M_PI, 2 * M_PI) - (float)M_PI;
 }

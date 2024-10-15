@@ -1,0 +1,4 @@
+../Tools/board.c:3:6:Board_LedSet	16	static
+../Tools/board.c:9:6:Board_LedReset	16	static
+../Tools/board.c:15:6:Board_LedToggle	16	static
+../Tools/board.c:21:10:Board_GetID	16	static

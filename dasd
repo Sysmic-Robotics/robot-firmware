@@ -1,0 +1,35 @@
+* [33me6789bb[m[33m ([m[1;31morigin/cubeide[m[33m)[m last fw version
+* [33m85714b4[m nrf24 errors supressed, radio freq adjusted
+* [33mf4cc2f7[m ball sensor ok
+* [33ma75396d[m cubeide project working
+* [33maad1a23[m[33m ([m[1;31morigin/pid_test[m[33m)[m NRF24 check rate updated
+* [33m006150a[m Kicker added
+* [33me80c21c[m Moved ID setting by DIP sw to board
+* [33mb558684[m PID updated
+* [33m51d54f5[m ID setted by switch
+* [33ma1057b4[m Updated to RoboJackets data packet
+* [33mdc8be37[m Dribbler started
+* [33m74fb55a[m Robot working
+* [33m7734642[m PID tunned (almost)
+* [33mf3a4814[m PID tested and functional
+* [33mdd680c2[m pablo
+[31m|[m * [33md1824bb[m[33m ([m[1;31morigin/master[m[33m)[m PDF schematic added
+[31m|[m[31m/[m  
+* [33m2d5147a[m Brake pin fixed
+* [33mb7c5bdc[m no se q cosa
+* [33m34c284c[m Kinematics updated. Motor GPIO added. DAC setting voltage OK
+* [33ma6e2f1d[m Added motor drivers GPIO to CUBEMX
+* [33m2d0426f[m Radio OK. Fix speed conversion
+* [33m61056f4[m Motor lib added and compiled
+* [33m4e11241[m Open loop code compiled. TODO: add PID and FreeRTOS. Finish libs
+* [33mbc0a86e[m Receiving from base station
+* [33m9fc0863[m MAX581x generic lib added
+* [33m80553f6[m CubeMX-Keil project added. Using HAL
+* [33me3a007a[m Updated ll i2c lib
+* [33m5c0d3be[m sysmic_ll_i2c.h modified
+* [33m4c6bcb9[m I2C transmit and receive functions added
+* [33m67b95be[m I2C lib started
+* [33m1a80876[m Added doc commentaries to PID and nRF24 files
+* [33mc532a2b[m Updated from labcomp repo
+* [33m5ae053e[m Added PID lib
+* [33md8ac113[m Initial commit

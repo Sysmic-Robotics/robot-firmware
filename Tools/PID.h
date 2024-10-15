@@ -70,6 +70,8 @@ typedef struct {
 
 	float outputMax;
 	float outputMin;
+	
+	float integralMax;
 
 	float sampleTime;
 } PID_Params_t;
@@ -92,41 +94,41 @@ typedef struct {
 
 /**
  * \brief PID initialization
- * \param pidDevice: Struct that store PID operation info
+ * \param pid: Struct that store PID operation info
  * \param params: Struct that contains PID configuration parameters
  * \param enable: Enable status of PID
  */
-void PID_Init(PID_Handler_t *pidDevice, PID_Params_t params, PID_Status_t enable);
+void PID_Init(PID_Handler_t *pid, PID_Params_t params, PID_Status_t enable);
 
 /**
  * \brief Execute a close loop operation
- * \param pidDevice: Struct that store PID operation info
+ * \param pid: Struct that store PID operation info
  * \param reference: Reference set to PID controller
  * \param measure: Feedback used to compute error
  */
-void PID_CloseLoop(PID_Handler_t *pidDevice, float reference, float measure);
+void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure);
 
 /**
  * \brief Set PID parameters
- * \param pidDevice: Struct that store PID operation info
+ * \param pid: Struct that store PID operation info
  * \param Kp: Proportional gain
  * \param Ki: Integral gain
  * \param Kd: Derivative gain
  */
-void PID_SetController(PID_Handler_t *pidDevice, float Kp, float Ki, float Kd);
+void PID_SetController(PID_Handler_t *pid, float Kp, float Ki, float Kd);
 
 /**
  * \brief Set parameters from struct
- * \param pidDevice: Struct that store PID operation info
+ * \param pid: Struct that store PID operation info
  * \param params: Struct with PID configuration parameters
  */
-void PID_SetParams(PID_Handler_t *pidDevice, PID_Params_t params);
+void PID_SetParams(PID_Handler_t *pid, PID_Params_t params);
 
 /**
  * \brief Enable or disable PID
- * \param pidDevice: Struct that store PID operation info
+ * \param pid: Struct that store PID operation info
  * \param enable: PID set status
  */
-void PID_Enable(PID_Handler_t *pidDevice, PID_Status_t enable);
+void PID_Enable(PID_Handler_t *pid, PID_Status_t enable);
 
 #endif
