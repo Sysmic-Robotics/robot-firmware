@@ -53,7 +53,7 @@
 #include "stm32f7xx_hal.h"
 #include "math.h"
 
-#define M_PI 			3.14159265358979323846f
+// #define M_PI 					3.14159265358979323846f
 #define ENCODER_CPR		4.0f * 2048.0f
 
 typedef enum {
@@ -67,6 +67,7 @@ typedef struct Encoder_Handler {
 
 	uint8_t overflow;	
 	int16_t resetVal;
+	float minSpeed;
 
 	Encoder_Status_t enable;
 } Encoder_Handler_t;
