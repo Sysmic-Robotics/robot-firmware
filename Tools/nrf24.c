@@ -200,6 +200,7 @@ void nRF24_SetAddr(nRF24_Handler_t *device, uint8_t pipe, uint8_t *addr) {
       } while (addr_width--);
       nRF24_CSN_State(device, GPIO_PIN_SET);
       break;
+
     case nRF24_PIPE1:
       /* Get address width */
       addr_width = nRF24_ReadReg(device, nRF24_REG_SETUP_AW) + 1;
@@ -212,13 +213,63 @@ void nRF24_SetAddr(nRF24_Handler_t *device, uint8_t pipe, uint8_t *addr) {
       } while (addr_width--);
       nRF24_CSN_State(device, GPIO_PIN_SET);
       break;
+
     case nRF24_PIPE2:
+    	/* Get address width */
+	  addr_width = nRF24_ReadReg(device, nRF24_REG_SETUP_AW) + 1;
+	  /* Write address in reverse order (LSByte first) */
+	  addr += addr_width;
+	  nRF24_CSN_State(device, GPIO_PIN_RESET);
+	  nRF24_LL_RW(device, nRF24_CMD_W_REGISTER | nRF24_ADDR_REGS[pipe]);
+	  do {
+		nRF24_LL_RW(device, *addr--);
+	  } while (addr_width--);
+	  nRF24_CSN_State(device, GPIO_PIN_SET);
+	  break;
+
     case nRF24_PIPE3:
+    	/* Get address width */
+	  addr_width = nRF24_ReadReg(device, nRF24_REG_SETUP_AW) + 1;
+	  /* Write address in reverse order (LSByte first) */
+	  addr += addr_width;
+	  nRF24_CSN_State(device, GPIO_PIN_RESET);
+	  nRF24_LL_RW(device, nRF24_CMD_W_REGISTER | nRF24_ADDR_REGS[pipe]);
+	  do {
+		nRF24_LL_RW(device, *addr--);
+	  } while (addr_width--);
+	  nRF24_CSN_State(device, GPIO_PIN_SET);
+	  break;
+
+
     case nRF24_PIPE4:
+    	/* Get address width */
+	  addr_width = nRF24_ReadReg(device, nRF24_REG_SETUP_AW) + 1;
+	  /* Write address in reverse order (LSByte first) */
+	  addr += addr_width;
+	  nRF24_CSN_State(device, GPIO_PIN_RESET);
+	  nRF24_LL_RW(device, nRF24_CMD_W_REGISTER | nRF24_ADDR_REGS[pipe]);
+	  do {
+		nRF24_LL_RW(device, *addr--);
+	  } while (addr_width--);
+	  nRF24_CSN_State(device, GPIO_PIN_SET);
+	  break;
+
+
     case nRF24_PIPE5:
-      /* Write address LSBbyte (only first byte from the addr buffer) */
-      nRF24_WriteReg(device, nRF24_ADDR_REGS[pipe], *addr);
-      break;
+
+    	/* Get address width */
+	  addr_width = nRF24_ReadReg(device, nRF24_REG_SETUP_AW) + 1;
+	  /* Write address in reverse order (LSByte first) */
+	  addr += addr_width;
+	  nRF24_CSN_State(device, GPIO_PIN_RESET);
+	  nRF24_LL_RW(device, nRF24_CMD_W_REGISTER | nRF24_ADDR_REGS[pipe]);
+	  do {
+		nRF24_LL_RW(device, *addr--);
+	  } while (addr_width--);
+	  nRF24_CSN_State(device, GPIO_PIN_SET);
+	  break;
+
+
     case nRF24_PIPETX:
       //nRF24_WriteMBReg(device, nRF24_CMD_W_REGISTER | nRF24_REG_TX_ADDR, addr, 5);
       /* Get address width */
@@ -317,6 +368,10 @@ uint8_t nRF24_GetStatus(nRF24_Handler_t *device) {
   return nRF24_ReadReg(device, nRF24_REG_STATUS);
 }
 
+uint8_t nRF24_GetConfig(nRF24_Handler_t *device) {
+  return nRF24_ReadReg(device, nRF24_REG_CONFIG);
+}
+
 uint8_t nRF24_GetIRQFlags(nRF24_Handler_t *device) {
   return (nRF24_ReadReg(device, nRF24_REG_STATUS) & nRF24_MASK_STATUS_IRQ);
 }
@@ -359,6 +414,24 @@ void nRF24_ClearIRQFlags(nRF24_Handler_t *device) {
   /* Clear RX_DR, TX_DS and MAX_RT bits of the STATUS register */
   reg  = nRF24_ReadReg(device, nRF24_REG_STATUS);
   reg |= nRF24_MASK_STATUS_IRQ;
+  nRF24_WriteReg(device, nRF24_REG_STATUS, reg);
+}
+
+void nRF24_ClearIRQFlagsTx(nRF24_Handler_t *device) {
+  uint8_t reg;
+
+  /* Clear TX_DS and MAX_RT bits of the STATUS register */
+  reg  = nRF24_ReadReg(device, nRF24_REG_STATUS);
+  reg |= nRF24_MASK_STATUS_IRQ_TX;
+  nRF24_WriteReg(device, nRF24_REG_STATUS, reg);
+}
+
+void nRF24_ClearIRQFlagsRx(nRF24_Handler_t *device) {
+  uint8_t reg;
+
+  /* Clear RX_DRbits of the STATUS register */
+  reg  = nRF24_ReadReg(device, nRF24_REG_STATUS);
+  reg |= nRF24_MASK_STATUS_IRQ_RX;
   nRF24_WriteReg(device, nRF24_REG_STATUS, reg);
 }
 

@@ -197,6 +197,10 @@ int main(void)
 		Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_3);
 		HAL_Delay(100);
 	}
+
+
+
+
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
@@ -252,6 +256,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1)
 	{
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -845,17 +850,20 @@ static void MX_GPIO_Init(void)
 // Function to fill the txBuffer with motor speeds
 void updateBuffer(uint8_t *buffer) {
 
+	// Fill buffer with zeros if necessary
+	memset(&buffer[0], 0, 32);
+
     // Copy the motor speeds to the txBuffer
     memcpy(&buffer[0], &motor[0].measSpeed, sizeof(float));
     memcpy(&buffer[4], '\n',1);
-    memcpy(&buffer[4+1], &motor[1].measSpeed, sizeof(float));
-    memcpy(&buffer[8], '\n',1);
-    memcpy(&buffer[8+1], &motor[2].measSpeed, sizeof(float));
-    memcpy(&buffer[12], '\n',1);
-    memcpy(&buffer[12+1], &motor[3].measSpeed, sizeof(float));
+    memcpy(&buffer[5], &motor[1].measSpeed, sizeof(float));
+    memcpy(&buffer[9], '\n',1);
+    memcpy(&buffer[10], &motor[2].measSpeed, sizeof(float));
+    memcpy(&buffer[14], '\n',1);
+    memcpy(&buffer[15], &motor[3].measSpeed, sizeof(float));
 
-    // Fill the remaining part of the buffer with zeros if necessary
-    memset(&buffer[16], 0, 16);
+
+
 }
 
 
@@ -1127,7 +1135,7 @@ void DriveFunction(void const * argument)
 /* USER CODE END Header_RadioFunction */
 void RadioFunction(void const * argument) {
 	/* USER CODE BEGIN RadioFunction */
-	tx_node_addr[4]=Board_GetID();
+
 
 	nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
 	nRF24_Init(&nrf_device);
@@ -1143,12 +1151,14 @@ void RadioFunction(void const * argument) {
 	nRF24_RX_ON(&nrf_device);
 	
 	memset(nrf_device.rx_data, 0, 32);
-/*
+
 	// Configurar el canal de transmisión una vez al inicio
 	nRF24_DisableAA(&nrf_device, nRF24_PIPETX);
+	//robot pipe
+	tx_node_addr[4]=Board_GetID();
 	nRF24_SetAddr(&nrf_device, nRF24_PIPETX, tx_node_addr);
 	config = nRF24_GetConfig(&nrf_device);
-*/
+
 	/* Infinite loop */
 	for(;;) {
 	osMessageGet(nrf24CheckHandle, osWaitForever);

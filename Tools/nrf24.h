@@ -67,6 +67,8 @@
 #define nRF24_MASK_REG_MAP         (uint8_t)0x1F // Mask bits[4:0] for CMD_RREG and CMD_WREG commands
 #define nRF24_MASK_CRC             (uint8_t)0x0C // Mask for CRC bits [3:2] in CONFIG register
 #define nRF24_MASK_STATUS_IRQ      (uint8_t)0x70 // Mask for all IRQ bits in STATUS register
+#define nRF24_MASK_STATUS_IRQ_TX   (uint8_t)0x30 // Mask for all IRQ TX bits in STATUS register
+#define nRF24_MASK_STATUS_IRQ_RX   (uint8_t)0x40 // Mask for all IRQ RX bits in STATUS register
 #define nRF24_MASK_RF_PWR          (uint8_t)0x06 // Mask RF_PWR[2:1] bits in RF_SETUP register
 #define nRF24_MASK_RX_P_NO         (uint8_t)0x0E // Mask RX_P_NO[3:1] bits in STATUS register
 #define nRF24_MASK_DATARATE        (uint8_t)0x28 // Mask RD_DR_[5,3] bits in RF_SETUP register
@@ -376,6 +378,12 @@ void nRF24_DisableAA(nRF24_Handler_t *device, uint8_t pipe);
 uint8_t nRF24_GetStatus(nRF24_Handler_t *device);
 
 /**
+ * \brief Get value of the CONFIG register
+ * \return Value of CONFIG register
+ */
+uint8_t nRF24_GetConfig(nRF24_Handler_t *device);
+
+/**
  * \brief Get pending IRQ flags
  * \return Current status of RX_DR, TX_DS and MAX_RT bits of the STATUS register
  */
@@ -424,6 +432,16 @@ void nRF24_FlushRX(nRF24_Handler_t *device);
  * \brief Clear any pending IRQ flags
  */
 void nRF24_ClearIRQFlags(nRF24_Handler_t *device);
+
+/**
+ * \brief Clear TX IRQ flags
+ */
+void nRF24_ClearIRQFlagsTx(nRF24_Handler_t *device);
+
+/**
+ * \brief Clear RX IRQ flags
+ */
+void nRF24_ClearIRQFlagsRx(nRF24_Handler_t *device);
 
 /**
  * \brief Write TX payload
