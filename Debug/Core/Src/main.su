@@ -16,7 +16,7 @@
 ../Core/Src/main.c:956:9:getKickerStatus	24	static
 ../Core/Src/main.c:968:6:BallDetectorFunction	24	static
 ../Core/Src/main.c:1002:6:DriveFunction	112	static
-../Core/Src/main.c:1136:6:RadioFunction	40	static
-../Core/Src/main.c:1232:6:KickFunction	40	static
-../Core/Src/main.c:1270:6:HAL_TIM_PeriodElapsedCallback	16	static
-../Core/Src/main.c:1287:6:Error_Handler	4	static
+../Core/Src/main.c:1136:6:RadioFunction	48	static
+../Core/Src/main.c:1234:6:KickFunction	40	static
+../Core/Src/main.c:1272:6:HAL_TIM_PeriodElapsedCallback	16	static
+../Core/Src/main.c:1289:6:Error_Handler	4	static

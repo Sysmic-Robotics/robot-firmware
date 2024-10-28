@@ -17,6 +17,6 @@
 ../Core/Src/main.c:968:6:BallDetectorFunction	3
 ../Core/Src/main.c:1002:6:DriveFunction	6
 ../Core/Src/main.c:1136:6:RadioFunction	4
-../Core/Src/main.c:1232:6:KickFunction	1
-../Core/Src/main.c:1270:6:HAL_TIM_PeriodElapsedCallback	2
-../Core/Src/main.c:1287:6:Error_Handler	1
+../Core/Src/main.c:1234:6:KickFunction	1
+../Core/Src/main.c:1272:6:HAL_TIM_PeriodElapsedCallback	2
+../Core/Src/main.c:1289:6:Error_Handler	1
