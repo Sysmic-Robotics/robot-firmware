@@ -1155,7 +1155,8 @@ void RadioFunction(void const * argument) {
 	// Configurar el canal de transmisión una vez al inicio
 	nRF24_DisableAA(&nrf_device, nRF24_PIPETX);
 	//robot pipe
-	tx_node_addr[4]=Board_GetID();
+	//tx_node_addr[4]=Board_GetID();
+	tx_node_addr[4]=0;
 	nRF24_SetAddr(&nrf_device, nRF24_PIPETX, tx_node_addr);
 	config = nRF24_GetConfig(&nrf_device);
 
@@ -1181,12 +1182,13 @@ void RadioFunction(void const * argument) {
 
 
 		//PackageTxBuffer(txBuffer); //empaqueeta las velocidades en txbuffer
-		//memcpy(txBuffer, nrf_device.rx_data, sizeof(nrf_device.rx_data));
-		//txBuffer[31] = '\n';
-		//txBuffer[30] = Board_GetID();
+		memcpy(txBuffer, nrf_device.rx_data, sizeof(nrf_device.rx_data));
+
+		txBuffer[30] = Board_GetID() + 48;
+		txBuffer[31] = '\n';
 
 		//Actualiza informacion del buffer tx motor[i].measSpeed
-		updateBuffer(txBuffer);
+		//updateBuffer(txBuffer);
 
 
 		// Cambiar a modo TX y enviar datos
