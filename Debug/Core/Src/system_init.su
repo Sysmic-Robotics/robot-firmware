@@ -1,0 +1,10 @@
+../Core/Src/system_init.c:28:6:SystemClock_Config	88	static
+../Core/Src/system_init.c:81:6:MX_I2C1_Init	8	static
+../Core/Src/system_init.c:129:6:MX_I2C2_Init	8	static
+../Core/Src/system_init.c:177:6:MX_I2C3_Init	8	static
+../Core/Src/system_init.c:225:6:MX_SPI1_Init	8	static
+../Core/Src/system_init.c:266:6:MX_TIM2_Init	56	static
+../Core/Src/system_init.c:315:6:MX_TIM3_Init	56	static
+../Core/Src/system_init.c:364:6:MX_TIM5_Init	56	static
+../Core/Src/system_init.c:413:6:MX_TIM8_Init	56	static
+../Core/Src/system_init.c:464:6:MX_GPIO_Init	72	static

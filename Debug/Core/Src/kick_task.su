@@ -1,0 +1,3 @@
+../Core/Src/kick_task.c:6:6:KickFunction	32	static
+../Core/Src/kick_task.c:38:9:getDribbler_speed	24	static
+../Core/Src/kick_task.c:46:9:getKickerStatus	24	static

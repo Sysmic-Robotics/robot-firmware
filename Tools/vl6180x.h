@@ -1,7 +1,5 @@
+#ifndef _VL6180X_H_
 #define _VL6180X_H_
-
-//#include "Arduino.h"
-//#include <I2CDevice.h>
 
 #define VL6180X_DEFAULT_I2C_ADDR 0x29
 ///< The fixed I2C addres
@@ -119,4 +117,6 @@ void VL6180X_StopRangeContinuous(VL6180X_Handler_t *device);
 
 void VL6180X_SetOffset(VL6180X_Handler_t *device, uint8_t offset);
 void VL6180X_GetID(VL6180X_Handler_t *device, uint8_t *id_ptr);
+
+#endif // _VL6180X_H_
 

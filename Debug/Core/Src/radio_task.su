@@ -1,0 +1,3 @@
+../Core/Src/radio_task.c:10:6:RadioFunction	40	static
+../Core/Src/radio_task.c:67:6:updateBuffer	16	static
+../Core/Src/radio_task.c:83:6:nRF24_TxPacket	32	static
