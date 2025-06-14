@@ -56,4 +56,4 @@ TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim8;
 
 // ===================== DRIBBLER SPEED SET =====================
-const uint16_t Dribbler_SpeedSet[] = {0, 1000, 2000, 3000, 4000, 5000}; // Ajusta los valores según tu aplicación
+const uint16_t Dribbler_SpeedSet[] =  {0, 450, 492, 575, 585, 617, 658, 700};

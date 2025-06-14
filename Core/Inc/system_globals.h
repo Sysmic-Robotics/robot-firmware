@@ -10,12 +10,12 @@
 
 // ===================== DEFINES DEL SISTEMA =====================
 #define ROBOT_RADIO           0.08215f
-#define ROBOT_MAX_LINEAR_ACC  0.1f
+#define ROBOT_MAX_LINEAR_ACC  0.5f
 #define ANGULAR_SPEED_FACTOR  30.0f
 #define DRIBBLER_CONV(x)      ((x) * (1023.0f / 7.0f))
 #define VL6180X_THRESHOLD     65
 #define VL6180X_SAMPLE_TIME   50
-#define nRF24L01_SYSMIC_CHANNEL 0x6A
+#define nRF24L01_SYSMIC_CHANNEL 0x6B
 
 // Estados del kicker
 #define KICKER_DISCHARGED 0x00
