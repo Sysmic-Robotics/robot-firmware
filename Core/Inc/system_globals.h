@@ -39,6 +39,8 @@ extern osMessageQId nrf24CheckHandle;
 // --- DRIVE TASK ---
 extern float speed[4];
 extern float kinematic[4][3];
+extern float kin_a;
+extern float kin_b;
 extern Motor_Handler_t motor[4];
 extern uint8_t direction[4];
 extern float dribbler_speed;

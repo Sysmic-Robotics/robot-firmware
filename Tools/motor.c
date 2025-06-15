@@ -38,7 +38,7 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
   else Motor_Enable(motorDevice, MOTOR_STATUS_ENABLE);
   */
 	/* Apply PID */
-	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
+	motorDevice->refSpeed = speed;
 	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
 	
