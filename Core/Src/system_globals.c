@@ -16,6 +16,8 @@ osMessageQId nrf24CheckHandle = NULL;
 uint8_t direction[4] = {0};
 float speed[4] = {0};
 float kinematic[4][3] = {0};
+float kin_a = 0.0f;
+float kin_b = 0.0f;
 Motor_Handler_t motor[4] = {0};
 float v_vel[3] = {0};
 

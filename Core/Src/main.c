@@ -49,10 +49,10 @@ int main(void)
     MX_I2C3_Init();
 
     // Inicialización de la matriz cinemática
-    kinematic[0][0] = sin(WHEEL_ANGlE_1); kinematic[0][1] = -cos(WHEEL_ANGlE_1); kinematic[0][2] = -ROBOT_RADIO;
-    kinematic[1][0] = sin(WHEEL_ANGlE_2); kinematic[1][1] = -cos(WHEEL_ANGlE_2); kinematic[1][2] = -ROBOT_RADIO;
-    kinematic[2][0] = sin(WHEEL_ANGlE_3); kinematic[2][1] = -cos(WHEEL_ANGlE_3); kinematic[2][2] = -ROBOT_RADIO;
-    kinematic[3][0] = sin(WHEEL_ANGlE_4); kinematic[3][1] = -cos(WHEEL_ANGlE_4); kinematic[3][2] = -ROBOT_RADIO;
+    kinematic[0][0] = -sin(WHEEL_ANGlE_1-(kin_b*M_PI/180.0f)); kinematic[0][1] = cos(WHEEL_ANGlE_1-(kin_b*M_PI/180.0f)); kinematic[0][2] = ROBOT_RADIO;
+    kinematic[1][0] = -sin(WHEEL_ANGlE_2-(kin_a*M_PI/180.0f)); kinematic[1][1] = cos(WHEEL_ANGlE_2-(kin_a*M_PI/180.0f)); kinematic[1][2] = ROBOT_RADIO;
+    kinematic[2][0] = -sin(WHEEL_ANGlE_3+(kin_a*M_PI/180.0f)); kinematic[2][1] = cos(WHEEL_ANGlE_3+(kin_a*M_PI/180.0f)); kinematic[2][2] = ROBOT_RADIO;
+    kinematic[3][0] = -sin(WHEEL_ANGlE_4+(kin_b*M_PI/180.0f)); kinematic[3][1] = cos(WHEEL_ANGlE_4+(kin_b*M_PI/180.0f)); kinematic[3][2] = ROBOT_RADIO;
 
     // Parpadeo de LEDs para indicar inicio
     for (uint8_t i = 0; i < 5; i++) {
