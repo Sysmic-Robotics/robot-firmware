@@ -10,7 +10,7 @@
 
 // ===================== DEFINES DEL SISTEMA =====================
 #define ROBOT_RADIO           0.08215f
-#define ROBOT_MAX_LINEAR_ACC  0.5f
+#define ROBOT_MAX_LINEAR_ACC  1.0f
 #define ANGULAR_SPEED_FACTOR  30.0f
 #define DRIBBLER_CONV(x)      ((x) * (1023.0f / 7.0f))
 #define VL6180X_THRESHOLD     65
@@ -39,8 +39,8 @@ extern osMessageQId nrf24CheckHandle;
 // --- DRIVE TASK ---
 extern float speed[4];
 extern float kinematic[4][3];
-extern float kin_a;
-extern float kin_b;
+extern float a;
+extern float b;
 extern Motor_Handler_t motor[4];
 extern uint8_t direction[4];
 extern float dribbler_speed;
@@ -72,6 +72,9 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim8;
+extern UART_HandleTypeDef huart5;
+extern DMA_HandleTypeDef hdma_uart5_tx;
+
 
 // ===================== RTOS TASK HANDLES =====================
 extern osThreadId driveTaskHandle;

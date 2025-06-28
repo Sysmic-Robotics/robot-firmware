@@ -131,7 +131,7 @@ void DriveFunction(void const * argument)
             MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler_sel]);
         }
 
-        if(ball_posession && kick_sel && kick_flag == KICKER_CHARGED) {
+        if(kick_sel && kick_flag == KICKER_CHARGED) {
             osMutexWait(kickFlagHandle, osWaitForever);
             kick_flag = KICKER_START;
             osMutexRelease(kickFlagHandle);
@@ -145,13 +145,14 @@ void DriveFunction(void const * argument)
 
 void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 {
+
 	/* Last velocities */
 	float prv_Vx = v_vel[0], prv_Vy = v_vel[1];
 	
 	/* Velocities vector: vx, vy and vr respectively */
-	v_vel[0] = (buffer[1] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F)) / 100.0f;
-	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F)) / 100.0f;
-	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 100.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F)) / 100.0f;
+	v_vel[0] = (buffer[1] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F))/100.0f  : (float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F))/100.0f ;
+	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f ;
+	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F))/100.0f ;
 
 	/* Check if acceleration is not too high */
 	float Ax = v_vel[0] - prv_Vx, Ay = v_vel[1] - prv_Vy;
@@ -175,19 +176,13 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 		/* Temporal speed variable. Calculate each wheel speed respect to robot kinematic model */
 		float t_vel = 0;
 		for (uint8_t j = 0; j < 3; j++)
-		{   
-            /*
-            kinematic[0][0] = -sin(WHEEL_ANGlE_1-(kin_b*M_PI/180.0f)); kinematic[0][1] = cos(WHEEL_ANGlE_1-(kin_b*M_PI/180.0f)); kinematic[0][2] = ROBOT_RADIO;
-            kinematic[1][0] = -sin(WHEEL_ANGlE_2-(kin_a*M_PI/180.0f)); kinematic[1][1] = cos(WHEEL_ANGlE_2-(kin_a*M_PI/180.0f)); kinematic[1][2] = ROBOT_RADIO;
-            kinematic[2][0] = -sin(WHEEL_ANGlE_3+(kin_a*M_PI/180.0f)); kinematic[2][1] = cos(WHEEL_ANGlE_3+(kin_a*M_PI/180.0f)); kinematic[2][2] = ROBOT_RADIO;
-            kinematic[3][0] = -sin(WHEEL_ANGlE_4+(kin_b*M_PI/180.0f)); kinematic[3][1] = cos(WHEEL_ANGlE_4+(kin_b*M_PI/180.0f)); kinematic[3][2] = ROBOT_RADIO;
-            */
+		{
 			t_vel += kinematic[i][j] * v_vel[j];
 		}
 		/* Check velocity direction */
 		turn[i] = (t_vel > 0) ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
 
 		/* Fill speed array. Speed in [m/s] */
-		velocity[i] = t_vel* (SPEED_CNT_RATIO/M_PI); // [rad/s] -> [count/(pid_samples * ms)] *8.185 magic, for packets
+		velocity[i] = t_vel;
 	}
 }
