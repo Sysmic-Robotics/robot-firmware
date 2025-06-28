@@ -28,7 +28,7 @@ void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 		return;
 	}
 
-	Motor_SetVoltage(motorDevice, dacDevice, speed * WHEEL_GEAR_RATIO * MOTOR_SPEED_CONV);
+	Motor_SetVoltage(motorDevice, dacDevice, speed  * MOTOR_SPEED_CONV);
 }
 
 void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
@@ -38,7 +38,7 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
   else Motor_Enable(motorDevice, MOTOR_STATUS_ENABLE);
   */
 	/* Apply PID */
-	motorDevice->refSpeed = speed;
+	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
 	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
 	

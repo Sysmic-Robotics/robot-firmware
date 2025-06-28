@@ -23,6 +23,7 @@
 #include "stm32f7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+extern DMA_HandleTypeDef hdma_uart5_tx;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -173,5 +174,16 @@ void TIM1_UP_TIM10_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == UART5) {
+        // La transmisión ha terminado
+    }
+}
+
+void DMA1_Stream7_IRQHandler(void)
+{
+    HAL_DMA_IRQHandler(&hdma_uart5_tx);
+}
+
 
 /* USER CODE END 1 */
