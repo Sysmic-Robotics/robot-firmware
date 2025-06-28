@@ -29,6 +29,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_spi_ex.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h \
+ ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h \
+ ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h \
  ../Core/Inc/system_globals.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h \
@@ -47,14 +49,14 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/motor.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/encoder.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/motor.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/encoder.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/pid.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/MAX581x.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/nrf24.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/vl6180x.h \
  ../Core/Inc/system_globals.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/board.h \
+ C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/board.h \
  ../Core/Inc/drive_task.h ../Core/Inc/radio_task.h \
  ../Core/Inc/kick_task.h ../Core/Inc/ball_detector_task.h
 ../Core/Inc/main.h:
@@ -88,6 +90,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_spi_ex.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h:
+../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h:
+../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h:
 ../Core/Inc/system_globals.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
@@ -106,14 +110,14 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/motor.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/encoder.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/motor.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/encoder.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/pid.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/MAX581x.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/nrf24.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/vl6180x.h:
 ../Core/Inc/system_globals.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/board.h:
+C:/Users/Matia/Desktop/robot-firmware-main-separadoDeCodigos/robot-firmware-main-separadoDeCodigos/Tools/board.h:
 ../Core/Inc/drive_task.h:
 ../Core/Inc/radio_task.h:
 ../Core/Inc/kick_task.h:
