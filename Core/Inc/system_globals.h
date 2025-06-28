@@ -10,7 +10,7 @@
 
 // ===================== DEFINES DEL SISTEMA =====================
 #define ROBOT_RADIO           0.08215f
-#define ROBOT_MAX_LINEAR_ACC  0.5f
+#define ROBOT_MAX_LINEAR_ACC  1.0f
 #define ANGULAR_SPEED_FACTOR  30.0f
 #define DRIBBLER_CONV(x)      ((x) * (1023.0f / 7.0f))
 #define VL6180X_THRESHOLD     65
@@ -21,7 +21,6 @@
 #define KICKER_DISCHARGED 0x00
 #define KICKER_CHARGED    0x01
 #define KICKER_START      0x02
-
 
 // ===================== VARIABLES GLOBALES =====================
 extern uint16_t robot_id;
@@ -40,15 +39,14 @@ extern osMessageQId nrf24CheckHandle;
 // --- DRIVE TASK ---
 extern float speed[4];
 extern float kinematic[4][3];
-extern float kin_a;
-extern float kin_b;
+extern float a;
+extern float b;
 extern Motor_Handler_t motor[4];
 extern uint8_t direction[4];
 extern float dribbler_speed;
 extern uint8_t dribbler_sel;
 extern const uint16_t Dribbler_SpeedSet[];
 extern float v_vel[3];
-extern uint8_t zeroVector[5];
 
 // --- KICK TASK ---
 extern uint8_t kick_sel;
@@ -74,6 +72,9 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim8;
+extern UART_HandleTypeDef huart5;
+extern DMA_HandleTypeDef hdma_uart5_tx;
+
 
 // ===================== RTOS TASK HANDLES =====================
 extern osThreadId driveTaskHandle;

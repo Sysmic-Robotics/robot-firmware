@@ -59,10 +59,16 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					-(90.0f+35.0f) * M_PI / 180.0f
-#define WHEEL_ANGlE_2					-(30.0f) * M_PI / 180.0f
-#define WHEEL_ANGlE_3					(30.0f) * M_PI / 180.0f
-#define WHEEL_ANGlE_4					(90.0f+35.0f) * M_PI / 180.0f
+#define WHEEL_ANGlE_1					60.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					130.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					-130.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					-60.0f * M_PI / 180.0f
+
+
+#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
+#define WHEEL_ANGlE_2s					-(30.0f) *( M_PI / 180.0f)
+#define WHEEL_ANGlE_3s					(30.0f) * (M_PI / 180.0f)
+#define WHEEL_ANGlE_4s					(90.0f+35.0f) * (M_PI / 180.0f)
 
 /* Open loop */
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
@@ -76,7 +82,7 @@ enum {
 #define PID_SAMPLE_TIME				1.0f	// [ms]
 
 //#define SPEED_CNT_RATIO				(WHEEL_GEAR_RATIO * ENCODER_CPR) / ((PID_SAMPLE_TIME * 1000.0f) * 2.0f * M_PI * WHEEL_RADIO) // [m/s] -> [count/(pid_samples * ms)]
-#define SPEED_CNT_RATIO       (WHEEL_GEAR_RATIO) / (WHEEL_RADIO) // [m/s] -> [rad/s]
+#define SPEED_CNT_RATIO       1 / (WHEEL_RADIO) // [m/s] -> [rad/s]
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,

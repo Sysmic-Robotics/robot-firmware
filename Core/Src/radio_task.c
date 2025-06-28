@@ -7,97 +7,8 @@
 #include "kick_task.h"
 #include "drive_task.h"
 
+int fokk = 0;
 void RadioFunction(void const * argument) {
-
-    // --- Bucle principal de la tarea ---
-    for (;;) {
-        // Espera evento de la cola (sin timeout)
-        osMessageGet(nrf24CheckHandle, osWaitForever);
-
-        // Actualiza estado del nRF24
-        nrf_status = nRF24_GetStatus(&nrf_device);
-        nrf_config = nRF24_GetConfig(&nrf_device);
-
-        // Si hay datos recibidos
-        if (nrf_status & nRF24_FLAG_RX_DR) {
-            // --- Procesamiento de datos recibidos ---
-            readAndFlush(&nrf_device);
-
-            setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
-            dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
-            kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
-            updateBuffer_MotorVels(txBuffer);
-
-            // --- Cambio a modo TX y envío de datos ---
-            nRF24_RX_OFF(&nrf_device);
-            modeTX(&nrf_device);
-
-            // Envío del paquete de datos
-            sendTxPacket(&nrf_device, txBuffer, 32);
-
-            // --- Regreso a modo RX ---
-
-            modeRX(&nrf_device);
-        }
-    }
-}
-
-void RadioMenu(void const * argument) {
-    // --- Inicialización del módulo nRF24 ---
-    radioInit();
-    
-    //  Bucle principal del menu
-    for (;;) {
-        // Actualiza estado del nRF24
-        nrf_status = nRF24_GetStatus(&nrf_device);
-        nrf_config = nRF24_GetConfig(&nrf_device);
-
-        // Si hay datos recibidos
-        if (nrf_status & nRF24_FLAG_RX_DR) {
-            //  Procesamiento de datos recibidos 
-            readAndFlush(&nrf_device);
-
-            //comprueba si menasje es para este robot
-            if (nrf_device.rx_data[0] == robot_id) { 
-                //menu de opciones
-                switch (nrf_device.rx_data[1]) {
-                    case 'P': //PLAY Modo de jugar, inicia el sistema operativo
-                        break;
-                        break;
-
-                    case 'D': // Modo de dribbler
-                        break;
-
-                    case 'K': // Modo de kicker
-                        break;
-
-                    default:
-                        break;
-                }
-
-            }else{
-                setSpeed(zeroVector, speed, direction);
-            }
-            
-
-            // Actualiza el buffer de transmisión
-            updateBuffer_MotorVels(txBuffer);
-
-            // --- Cambio a modo TX y envío de datos ---
-            
-            modeTX(&nrf_device);
-
-            // Envío del paquete de datos
-            sendTxPacket(&nrf_device, txBuffer, 32);
-
-            // --- Regreso a modo RX ---
-
-            modeRX(&nrf_device);
-        }
-    }
-}
-
-void radioInit(void) {
     // --- Inicialización del módulo nRF24 ---
     nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
     nRF24_Init(&nrf_device);
@@ -112,25 +23,99 @@ void radioInit(void) {
     tx_node_addr[4] = Board_GetID();
     nRF24_SetAddr(&nrf_device, nRF24_PIPETX, tx_node_addr);
     nrf_config = nRF24_GetConfig(&nrf_device);
+
+    // --- Bucle principal de la tarea ---
+    for (;;) {
+        // Espera evento de la cola (sin timeout)
+        osMessageGet(nrf24CheckHandle, osWaitForever);
+
+        // Actualiza estado del nRF24
+        nrf_status = nRF24_GetStatus(&nrf_device);
+        nrf_config = nRF24_GetConfig(&nrf_device);
+
+
+        //memset(txBuffer, 0, 32);
+        //updateBuffer(txBuffer);
+        //txBuffer[28] = fokk++;
+        //HAL_UART_Transmit(&huart5, txBuffer,32,HAL_MAX_DELAY);
+        //osDelay(10);
+        // Si hay datos recibidos
+        if (nrf_status & nRF24_FLAG_RX_DR) {
+            // --- Procesamiento de datos recibidos ---
+
+
+        	//kinematic[0][0] = sin(WHEEL_ANGlE_1+(a*M_PI/180.0f)); kinematic[0][1] = -cos(WHEEL_ANGlE_1+(a*M_PI/180.0f)); kinematic[0][2] = -ROBOT_RADIO;
+        	//kinematic[1][0] = sin(WHEEL_ANGlE_2+(b*M_PI/180.0f)); kinematic[1][1] = -cos(WHEEL_ANGlE_2+(b*M_PI/180.0f)); kinematic[1][2] = -ROBOT_RADIO;
+            //kinematic[2][0] = sin(WHEEL_ANGlE_3-(b*M_PI/180.0f)); kinematic[2][1] = -cos(WHEEL_ANGlE_3-(b*M_PI/180.0f)); kinematic[2][2] = -ROBOT_RADIO;
+            //kinematic[3][0] = sin(WHEEL_ANGlE_4-(a*M_PI/180.0f)); kinematic[3][1] = -cos(WHEEL_ANGlE_4-(a*M_PI/180.0f)); kinematic[3][2] = -ROBOT_RADIO;
+
+
+            kinematic[0][0] = -sin(WHEEL_ANGlE_1s+(b*M_PI/180.0f)); kinematic[0][1] = cos(WHEEL_ANGlE_1s+(b*M_PI/180.0f)); kinematic[0][2] = ROBOT_RADIO;
+            kinematic[1][0] = -sin(WHEEL_ANGlE_2s+(a*M_PI/180.0f)); kinematic[1][1] = cos(WHEEL_ANGlE_2s+(a*M_PI/180.0f)); kinematic[1][2] = ROBOT_RADIO;
+            kinematic[2][0] = -sin(WHEEL_ANGlE_3s-(a*M_PI/180.0f)); kinematic[2][1] = cos(WHEEL_ANGlE_3s-(a*M_PI/180.0f)); kinematic[2][2] = ROBOT_RADIO;
+            kinematic[3][0] = -sin(WHEEL_ANGlE_4s-(b*M_PI/180.0f)); kinematic[3][1] = cos(WHEEL_ANGlE_4s-(b*M_PI/180.0f)); kinematic[3][2] = ROBOT_RADIO;
+
+
+
+            nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
+            nRF24_FlushRX(&nrf_device);
+            nRF24_ClearIRQFlagsRx(&nrf_device);
+
+            setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
+            dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
+            kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
+            updateBuffer(txBuffer);
+
+            // --- Cambio a modo TX y envío de datos ---
+            //nRF24_RX_OFF(&nrf_device);
+            //nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_TX);
+            //while (nrf_config & nRF24_CONFIG_PRIM_RX) {
+            //    nrf_config = nRF24_GetConfig(&nrf_device);
+            //}
+            //nRF24_TxPacket(&nrf_device, txBuffer, 32);
+
+            // --- Regreso a modo RX ---
+            //nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
+            //while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
+            //    nrf_config = nRF24_GetConfig(&nrf_device);
+            //}
+            //nRF24_RX_ON(&nrf_device);
+            //nRF24_ClearIRQFlags(&nrf_device);
+        }
+    }
 }
 
-void updateBuffer_MotorVels(uint8_t *buffer) {
+
+void updateBuffer(uint8_t *buffer) {
 
 	// Fill buffer with zeros if necessary
 	memset(&buffer[0], 0, 32);
+	float m0 = motor[0].measSpeed;
+	float r0 = speed[0];
+	float m1 = motor[1].measSpeed;
+	float r1 = speed[1];
+	float m2 = motor[2].measSpeed;
+	float r2 = speed[2];
+	float m3 = motor[3].measSpeed;
+	float r3 = speed[3];
 
-    // Copy the motor speeds to the txBuffer
-    memcpy(&buffer[0], (const void *)&motor[0].measSpeed, sizeof(float));
-    buffer[4] = '\n';
-    memcpy(&buffer[5], (const void *)&motor[1].measSpeed, sizeof(float));
-    buffer[9] = '\n';
-    memcpy(&buffer[10], (const void *)&motor[2].measSpeed, sizeof(float));
-    buffer[14] = '\n';
-    memcpy(&buffer[15], (const void *)&motor[3].measSpeed, sizeof(float));
+
+
+	//buffer[0] = 0xAA;
+	memcpy(&buffer[0], &m0, sizeof(float));
+	memcpy(&buffer[4], &r0, sizeof(float));
+	memcpy(&buffer[8], &m1, sizeof(float));
+	memcpy(&buffer[12], &r1, sizeof(float));
+	memcpy(&buffer[16], &m2, sizeof(float));
+	memcpy(&buffer[20], &r2, sizeof(float));
+	memcpy(&buffer[24], &m3, sizeof(float));
+	memcpy(&buffer[28], &r3, sizeof(float));
+	//buffer[33] = 0x55;
+
 }
 
 
-void sendTxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
+void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
 {
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
 
@@ -152,32 +137,3 @@ void sendTxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
 
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
 }
-
-void readAndFlush(nRF24_Handler_t *device) {
-    // Read payload
-    nRF24_ReadPayload(device, device->rx_data, &rx_len);
-    
-    // Flush RX buffer
-    nRF24_FlushRX(device);
-    
-    // Clear IRQ flags
-    nRF24_ClearIRQFlagsRx(device);
-}
-
-void modeTX(nRF24_Handler_t *device) {
-    nRF24_RX_OFF(device);
-    nRF24_SetOperationalMode(device, nRF24_MODE_TX);
-    while (nrf_config & nRF24_CONFIG_PRIM_RX) {
-        nrf_config = nRF24_GetConfig(device);
-    }
-}
-
-void modeRX(nRF24_Handler_t *device) {
-    nRF24_SetOperationalMode(device, nRF24_MODE_RX);
-    while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
-        nrf_config = nRF24_GetConfig(device);
-    }
-    nRF24_RX_ON(device);
-    nRF24_ClearIRQFlags(device);
-}
-
