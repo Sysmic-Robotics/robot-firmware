@@ -8,6 +8,96 @@
 #include "drive_task.h"
 
 void RadioFunction(void const * argument) {
+
+    // --- Bucle principal de la tarea ---
+    for (;;) {
+        // Espera evento de la cola (sin timeout)
+        osMessageGet(nrf24CheckHandle, osWaitForever);
+
+        // Actualiza estado del nRF24
+        nrf_status = nRF24_GetStatus(&nrf_device);
+        nrf_config = nRF24_GetConfig(&nrf_device);
+
+        // Si hay datos recibidos
+        if (nrf_status & nRF24_FLAG_RX_DR) {
+            // --- Procesamiento de datos recibidos ---
+            readAndFlush(&nrf_device);
+
+            setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
+            dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
+            kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
+            updateBuffer_MotorVels(txBuffer);
+
+            // --- Cambio a modo TX y envío de datos ---
+            nRF24_RX_OFF(&nrf_device);
+            modeTX(&nrf_device);
+
+            // Envío del paquete de datos
+            sendTxPacket(&nrf_device, txBuffer, 32);
+
+            // --- Regreso a modo RX ---
+
+            modeRX(&nrf_device);
+        }
+    }
+}
+
+void RadioMenu(void const * argument) {
+    // --- Inicialización del módulo nRF24 ---
+    radioInit();
+    
+    //  Bucle principal del menu
+    for (;;) {
+        // Actualiza estado del nRF24
+        nrf_status = nRF24_GetStatus(&nrf_device);
+        nrf_config = nRF24_GetConfig(&nrf_device);
+
+        // Si hay datos recibidos
+        if (nrf_status & nRF24_FLAG_RX_DR) {
+            //  Procesamiento de datos recibidos 
+            readAndFlush(&nrf_device);
+
+            //comprueba si menasje es para este robot
+            if (nrf_device.rx_data[0] == robot_id) { 
+                //menu de opciones
+                switch (nrf_device.rx_data[1]) {
+                    case 'P': //PLAY Modo de jugar, inicia el sistema operativo
+                        break;
+                        break;
+
+                    case 'D': // Modo de dribbler
+                        break;
+
+                    case 'K': // Modo de kicker
+                        break;
+
+                    default:
+                        break;
+                }
+
+            }else{
+                setSpeed(zeroVector, speed, direction);
+            }
+            
+
+            // Actualiza el buffer de transmisión
+            updateBuffer_MotorVels(txBuffer);
+
+            // --- Cambio a modo TX y envío de datos ---
+            
+            modeTX(&nrf_device);
+
+            // Envío del paquete de datos
+            sendTxPacket(&nrf_device, txBuffer, 32);
+
+            // --- Regreso a modo RX ---
+
+            modeRX(&nrf_device);
+        }
+    }
+}
+
+void radioInit(void) {
     // --- Inicialización del módulo nRF24 ---
     nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
     nRF24_Init(&nrf_device);
@@ -22,49 +112,9 @@ void RadioFunction(void const * argument) {
     tx_node_addr[4] = Board_GetID();
     nRF24_SetAddr(&nrf_device, nRF24_PIPETX, tx_node_addr);
     nrf_config = nRF24_GetConfig(&nrf_device);
-
-    // --- Bucle principal de la tarea ---
-    for (;;) {
-        // Espera evento de la cola (sin timeout)
-        osMessageGet(nrf24CheckHandle, osWaitForever);
-
-        // Actualiza estado del nRF24
-        nrf_status = nRF24_GetStatus(&nrf_device);
-        nrf_config = nRF24_GetConfig(&nrf_device);
-
-        // Si hay datos recibidos
-        if (nrf_status & nRF24_FLAG_RX_DR) {
-            // --- Procesamiento de datos recibidos ---
-            nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
-            nRF24_FlushRX(&nrf_device);
-            nRF24_ClearIRQFlagsRx(&nrf_device);
-
-            setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
-            dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
-            kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
-            updateBuffer(txBuffer);
-
-            // --- Cambio a modo TX y envío de datos ---
-            nRF24_RX_OFF(&nrf_device);
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_TX);
-            while (nrf_config & nRF24_CONFIG_PRIM_RX) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
-            }
-            nRF24_TxPacket(&nrf_device, txBuffer, 32);
-
-            // --- Regreso a modo RX ---
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
-            while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
-            }
-            nRF24_RX_ON(&nrf_device);
-            nRF24_ClearIRQFlags(&nrf_device);
-        }
-    }
 }
 
-
-void updateBuffer(uint8_t *buffer) {
+void updateBuffer_MotorVels(uint8_t *buffer) {
 
 	// Fill buffer with zeros if necessary
 	memset(&buffer[0], 0, 32);
@@ -80,7 +130,7 @@ void updateBuffer(uint8_t *buffer) {
 }
 
 
-void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
+void sendTxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
 {
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_SET);
 
@@ -102,3 +152,32 @@ void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
 
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
 }
+
+void readAndFlush(nRF24_Handler_t *device) {
+    // Read payload
+    nRF24_ReadPayload(device, device->rx_data, &rx_len);
+    
+    // Flush RX buffer
+    nRF24_FlushRX(device);
+    
+    // Clear IRQ flags
+    nRF24_ClearIRQFlagsRx(device);
+}
+
+void modeTX(nRF24_Handler_t *device) {
+    nRF24_RX_OFF(device);
+    nRF24_SetOperationalMode(device, nRF24_MODE_TX);
+    while (nrf_config & nRF24_CONFIG_PRIM_RX) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+}
+
+void modeRX(nRF24_Handler_t *device) {
+    nRF24_SetOperationalMode(device, nRF24_MODE_RX);
+    while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_RX_ON(device);
+    nRF24_ClearIRQFlags(device);
+}
+

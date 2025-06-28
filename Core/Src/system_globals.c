@@ -1,7 +1,6 @@
 #include "system_globals.h"
 
 // ===================== RADIO TASK =====================
-uint16_t robot_id = 0;
 uint8_t txBuffer[32] = {'R','a','d','i','o',' ','O','N','\n'};
 uint8_t rxBuffer[32] = {0};
 uint8_t rx_len = 0;
@@ -20,6 +19,7 @@ float kin_a = 0.0f;
 float kin_b = 0.0f;
 Motor_Handler_t motor[4] = {0};
 float v_vel[3] = {0};
+uint8_t zeroVector[5] = {0};
 
 // ===================== KICK TASK =====================
 float dribbler_speed = 0.0f;
@@ -41,6 +41,8 @@ uint8_t ball_meas_set[10] = {0};
 osThreadId ballDetectorTaskHandle = NULL;
 
 // ===================== COMMON =====================
+
+
 
 // ===================== RTOS TASK HANDLES =====================
 osThreadId driveTaskHandle = NULL;

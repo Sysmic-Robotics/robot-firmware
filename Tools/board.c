@@ -18,7 +18,7 @@ void Board_LedToggle(GPIO_TypeDef* Led_GPIO, uint16_t Led_Pin)
 	HAL_GPIO_TogglePin(Led_GPIO, Led_Pin);
 }
 
-uint16_t Board_GetID()
+const uint16_t Board_GetID()
 {
 	return (HAL_GPIO_ReadPin(DS_GPIO_1, DS_PIN_1)|
 	HAL_GPIO_ReadPin(DS_GPIO_2, DS_PIN_2) << 1|
