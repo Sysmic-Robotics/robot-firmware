@@ -16,8 +16,8 @@ osMessageQId nrf24CheckHandle = NULL;
 uint8_t direction[4] = {0};
 float speed[4] = {0};
 float kinematic[4][3] = {0};
-float kin_a = 0.0f;
-float kin_b = 0.0f;
+float a = 0.0f; //-90 y 90  1.08
+float b =-28.0f; //-45 y 45 1.16
 Motor_Handler_t motor[4] = {0};
 float v_vel[3] = {0};
 
@@ -56,6 +56,8 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim8;
+UART_HandleTypeDef huart5;
+DMA_HandleTypeDef hdma_uart5_tx;
 
 // ===================== DRIBBLER SPEED SET =====================
-const uint16_t Dribbler_SpeedSet[] =  {0, 450, 492, 575, 585, 617, 658, 700};
+const uint16_t Dribbler_SpeedSet[] = {0, 200, 450, 700, 900, 1023}; // Ajusta los valores según tu aplicación
