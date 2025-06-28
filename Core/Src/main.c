@@ -48,6 +48,8 @@ int main(void)
     MX_TIM8_Init();
     MX_I2C3_Init();
 
+    robot_id = Board_GetID();
+
     // Inicialización de la matriz cinemática
     kinematic[0][0] = -sin(WHEEL_ANGlE_1-(kin_b*M_PI/180.0f)); kinematic[0][1] = cos(WHEEL_ANGlE_1-(kin_b*M_PI/180.0f)); kinematic[0][2] = ROBOT_RADIO;
     kinematic[1][0] = -sin(WHEEL_ANGlE_2-(kin_a*M_PI/180.0f)); kinematic[1][1] = cos(WHEEL_ANGlE_2-(kin_a*M_PI/180.0f)); kinematic[1][2] = ROBOT_RADIO;
@@ -81,6 +83,12 @@ int main(void)
     kickTaskHandle = osThreadCreate(osThread(kickTask), NULL);
     osThreadDef(ballDetectorTask, BallDetectorFunction, osPriorityLow, 0, 128);
     ballDetectorTaskHandle = osThreadCreate(osThread(ballDetectorTask), NULL);
+
+
+    // Menu de radio sin OS
+    RadioMenu(NULL);
+    // Bucle principal del menu
+   
 
     osKernelStart(); // Inicia el scheduler RTOS
 

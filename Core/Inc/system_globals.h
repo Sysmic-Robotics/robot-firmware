@@ -22,6 +22,7 @@
 #define KICKER_CHARGED    0x01
 #define KICKER_START      0x02
 
+
 // ===================== VARIABLES GLOBALES =====================
 extern uint16_t robot_id;
 
@@ -47,6 +48,7 @@ extern float dribbler_speed;
 extern uint8_t dribbler_sel;
 extern const uint16_t Dribbler_SpeedSet[];
 extern float v_vel[3];
+extern uint8_t zeroVector[5];
 
 // --- KICK TASK ---
 extern uint8_t kick_sel;
