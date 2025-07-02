@@ -17,7 +17,7 @@ uint8_t direction[4] = {0};
 float speed[4] = {0};
 float kinematic[4][3] = {0};
 float a = 0.0f; //-90 y 90  1.08
-float b =-28.0f; //-45 y 45 1.16
+float b = 0.0f;//-28.0f; //-45 y 45 1.16
 Motor_Handler_t motor[4] = {0};
 float v_vel[3] = {0};
 
