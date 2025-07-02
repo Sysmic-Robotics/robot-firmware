@@ -59,16 +59,16 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					60.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2					130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3					-130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					-60.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_1					50.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					128.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					-128.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					-50.0f * M_PI / 180.0f
 
 
-#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
+/*#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
 #define WHEEL_ANGlE_2s					-(30.0f) *( M_PI / 180.0f)
 #define WHEEL_ANGlE_3s					(30.0f) * (M_PI / 180.0f)
-#define WHEEL_ANGlE_4s					(90.0f+35.0f) * (M_PI / 180.0f)
+#define WHEEL_ANGlE_4s					(90.0f+35.0f) * (M_PI / 180.0f)*/
 
 /* Open loop */
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s

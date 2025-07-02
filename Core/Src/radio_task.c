@@ -6,6 +6,9 @@
 #include <string.h>
 #include "kick_task.h"
 #include "drive_task.h"
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 int fokk = 0;
 void RadioFunction(void const * argument) {
@@ -42,18 +45,6 @@ void RadioFunction(void const * argument) {
         // Si hay datos recibidos
         if (nrf_status & nRF24_FLAG_RX_DR) {
             // --- Procesamiento de datos recibidos ---
-
-
-        	//kinematic[0][0] = sin(WHEEL_ANGlE_1+(a*M_PI/180.0f)); kinematic[0][1] = -cos(WHEEL_ANGlE_1+(a*M_PI/180.0f)); kinematic[0][2] = -ROBOT_RADIO;
-        	//kinematic[1][0] = sin(WHEEL_ANGlE_2+(b*M_PI/180.0f)); kinematic[1][1] = -cos(WHEEL_ANGlE_2+(b*M_PI/180.0f)); kinematic[1][2] = -ROBOT_RADIO;
-            //kinematic[2][0] = sin(WHEEL_ANGlE_3-(b*M_PI/180.0f)); kinematic[2][1] = -cos(WHEEL_ANGlE_3-(b*M_PI/180.0f)); kinematic[2][2] = -ROBOT_RADIO;
-            //kinematic[3][0] = sin(WHEEL_ANGlE_4-(a*M_PI/180.0f)); kinematic[3][1] = -cos(WHEEL_ANGlE_4-(a*M_PI/180.0f)); kinematic[3][2] = -ROBOT_RADIO;
-
-
-            kinematic[0][0] = -sin(WHEEL_ANGlE_1s+(b*M_PI/180.0f)); kinematic[0][1] = cos(WHEEL_ANGlE_1s+(b*M_PI/180.0f)); kinematic[0][2] = ROBOT_RADIO;
-            kinematic[1][0] = -sin(WHEEL_ANGlE_2s+(a*M_PI/180.0f)); kinematic[1][1] = cos(WHEEL_ANGlE_2s+(a*M_PI/180.0f)); kinematic[1][2] = ROBOT_RADIO;
-            kinematic[2][0] = -sin(WHEEL_ANGlE_3s-(a*M_PI/180.0f)); kinematic[2][1] = cos(WHEEL_ANGlE_3s-(a*M_PI/180.0f)); kinematic[2][2] = ROBOT_RADIO;
-            kinematic[3][0] = -sin(WHEEL_ANGlE_4s-(b*M_PI/180.0f)); kinematic[3][1] = cos(WHEEL_ANGlE_4s-(b*M_PI/180.0f)); kinematic[3][2] = ROBOT_RADIO;
 
 
 

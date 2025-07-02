@@ -50,19 +50,18 @@ int main(void)
     MX_I2C3_Init();
     MX_UART5_Init();
 
-     //kinematic[0][0] = sin(WHEEL_ANGlE_1+(a*M_PI/180.0f)); kinematic[0][1] = -cos(WHEEL_ANGlE_1+(a*M_PI/180.0f)); kinematic[0][2] = -ROBOT_RADIO;
-     //kinematic[1][0] = sin(WHEEL_ANGlE_2+(b*M_PI/180.0f)); kinematic[1][1] = -cos(WHEEL_ANGlE_2+(b*M_PI/180.0f)); kinematic[1][2] = -ROBOT_RADIO;
-     //kinematic[2][0] = sin(WHEEL_ANGlE_3-(b*M_PI/180.0f)); kinematic[2][1] = -cos(WHEEL_ANGlE_3-(b*M_PI/180.0f)); kinematic[2][2] = -ROBOT_RADIO;
-     //kinematic[3][0] = sin(WHEEL_ANGlE_4-(a*M_PI/180.0f)); kinematic[3][1] = -cos(WHEEL_ANGlE_4-(a*M_PI/180.0f)); kinematic[3][2] = -ROBOT_RADIO;
+    // AGREGAR: Inicialización explícita de motores
+    Motor_Init(&motor[0], 0, MOTOR_STATUS_DISABLE);  // ← DISABLE al inicio
+    Motor_Init(&motor[1], 1, MOTOR_STATUS_DISABLE);
+    Motor_Init(&motor[2], 2, MOTOR_STATUS_DISABLE);
+    Motor_Init(&motor[3], 3, MOTOR_STATUS_DISABLE);
 
+    kinematic[0][0] = -1/sin(WHEEL_ANGlE_1); kinematic[0][1] = 1/cos(WHEEL_ANGlE_1); kinematic[0][2] = ROBOT_RADIO;
+    kinematic[1][0] = -1/sin(WHEEL_ANGlE_2); kinematic[1][1] = 1/cos(WHEEL_ANGlE_2); kinematic[1][2] = ROBOT_RADIO;
+    kinematic[2][0] = -1/sin(WHEEL_ANGlE_3); kinematic[2][1] = 1/cos(WHEEL_ANGlE_3); kinematic[2][2] = ROBOT_RADIO;
+    kinematic[3][0] = -1/sin(WHEEL_ANGlE_4); kinematic[3][1] = 1/cos(WHEEL_ANGlE_4); kinematic[3][2] = ROBOT_RADIO;
 
-     kinematic[0][0] = -sin(WHEEL_ANGlE_1+(b*M_PI/180.0f)); kinematic[0][1] = cos(WHEEL_ANGlE_1+(b*M_PI/180.0f)); kinematic[0][2] = ROBOT_RADIO;
-     kinematic[1][0] = -sin(WHEEL_ANGlE_2+(a*M_PI/180.0f)); kinematic[1][1] = cos(WHEEL_ANGlE_2+(a*M_PI/180.0f)); kinematic[1][2] = ROBOT_RADIO;
-     kinematic[2][0] = -sin(WHEEL_ANGlE_3-(a*M_PI/180.0f)); kinematic[2][1] = cos(WHEEL_ANGlE_3-(a*M_PI/180.0f)); kinematic[2][2] = ROBOT_RADIO;
-     kinematic[3][0] = -sin(WHEEL_ANGlE_4-(b*M_PI/180.0f)); kinematic[3][1] = cos(WHEEL_ANGlE_4-(b*M_PI/180.0f)); kinematic[3][2] = ROBOT_RADIO;
-
-
-     // Parpadeo de LEDs para indicar inicio
+    // Parpadeo de LEDs para indicar inicio
     for (uint8_t i = 0; i < 5; i++) {
         Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_1);
         Board_LedToggle(BOARD_LED_GPIO, BOARD_LED_PIN_2);

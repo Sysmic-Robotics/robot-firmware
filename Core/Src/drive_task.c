@@ -12,7 +12,7 @@
 #define WHEEL_MAX_SPEED_RAD (M_PI * 40.0f) // Ajusta el valor según tu aplicación
 #endif
 #ifndef PID_SAMPLE_TIME
-#define PID_SAMPLE_TIME 10 // Ajusta el valor según tu aplicación
+#define PID_SAMPLE_TIME 1 // Ajusta el valor según tu aplicación
 #endif
 #ifndef ENCODER_CPR
 #define ENCODER_CPR 4096 // Ajusta el valor según tu aplicación
@@ -171,6 +171,7 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 		v_vel[1] = prv_Vy + Ay;
 	}
 	
+
 	for (uint8_t i = 0; i < 4; i++)
 	{
 		/* Temporal speed variable. Calculate each wheel speed respect to robot kinematic model */
