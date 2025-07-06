@@ -1,2 +1,2 @@
 ../Core/Src/drive_task.c:29:6:DriveFunction	112	static
-../Core/Src/drive_task.c:146:6:setSpeed	64	static
+../Core/Src/drive_task.c:146:6:setSpeed	72	static
