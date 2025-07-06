@@ -154,6 +154,16 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f ;
 	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F))/100.0f ;
 
+
+	/* Limit linear velocity magnitude */
+	float vel_mag = sqrt(v_vel[0]*v_vel[0] + v_vel[1]*v_vel[1]);
+	if (vel_mag > ROBOT_MAX_LINEAR_VEL)
+	{
+	    float scale = ROBOT_MAX_LINEAR_VEL / vel_mag;
+	    v_vel[0] *= scale;
+	    v_vel[1] *= scale;
+	}
+
 	/* Check if acceleration is not too high */
 	float Ax = v_vel[0] - prv_Vx, Ay = v_vel[1] - prv_Vy;
 	float acc_sum = Ax * Ax + Ay * Ay;

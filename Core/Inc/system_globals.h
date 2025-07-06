@@ -11,6 +11,7 @@
 // ===================== DEFINES DEL SISTEMA =====================
 #define ROBOT_RADIO           0.08215f
 #define ROBOT_MAX_LINEAR_ACC  1.5f
+#define ROBOT_MAX_LINEAR_VEL 2.5f // En m/s
 #define ANGULAR_SPEED_FACTOR  30.0f
 #define DRIBBLER_CONV(x)      ((x) * (1023.0f / 7.0f))
 #define VL6180X_THRESHOLD     65
