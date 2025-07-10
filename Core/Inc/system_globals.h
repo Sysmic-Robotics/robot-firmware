@@ -60,6 +60,7 @@ extern osMessageQId kickQueueHandle;
 // --- BALL DETECTOR TASK ---
 extern VL6180X_Handler_t range_sensor;
 extern uint8_t ball_posession;
+extern uint8_t ball_posession_last;
 extern uint16_t ball_range;
 extern uint16_t ball_accum;
 extern uint8_t ball_meas_set[10];

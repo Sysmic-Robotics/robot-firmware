@@ -1,6 +1,7 @@
 #include "ball_detector_task.h"
 #include "system_globals.h"
 #include "vl6180x.h"
+#include "radio_task.h"
 #include <string.h>
 
 void BallDetectorFunction(void const * argument) {
@@ -17,6 +18,9 @@ void BallDetectorFunction(void const * argument) {
         ball_range = ball_accum / 10;
         if (ball_range < VL6180X_THRESHOLD) {
             ball_posession = 0x01;
+            
+            updateBuffer(txBuffer);
+            Radio_SendPacket(&nrf_device, txBuffer, 32);
         } else {
             ball_posession = 0x00;
         }
