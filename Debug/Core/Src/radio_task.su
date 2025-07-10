@@ -1,3 +1,4 @@
 ../Core/Src/radio_task.c:14:6:RadioFunction	40	static
-../Core/Src/radio_task.c:80:6:updateBuffer	40	static
-../Core/Src/radio_task.c:103:6:nRF24_TxPacket	32	static
+../Core/Src/radio_task.c:79:6:updateBuffer	24	static
+../Core/Src/radio_task.c:102:6:nRF24_TxPacket	32	static
+../Core/Src/radio_task.c:126:6:Radio_SendPacket	24	static

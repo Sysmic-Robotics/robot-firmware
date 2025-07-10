@@ -2,7 +2,7 @@
 
 // ===================== RADIO TASK =====================
 uint16_t robot_id = 0;
-uint8_t txBuffer[32] = {'R','a','d','i','o',' ','O','N','\n'};
+uint8_t txBuffer[32] = {0};
 uint8_t rxBuffer[32] = {0};
 uint8_t rx_len = 0;
 uint8_t nrf_status = 0;
@@ -35,6 +35,7 @@ osEvent kicker_side = {0};
 // ===================== BALL DETECTOR TASK =====================
 VL6180X_Handler_t range_sensor = {0};
 uint8_t ball_posession = 0x00;
+uint8_t ball_posession_last = 0x00; // Variable para almacenar el estado anterior de la posesión de la pelota
 uint16_t ball_range = 0;
 uint16_t ball_accum = 0;
 uint8_t ball_meas_set[10] = {0};

@@ -55,7 +55,8 @@ Core/Src/ball_detector_task.o: ../Core/Src/ball_detector_task.c \
  C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h \
  C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h \
  C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h
+ C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h \
+ ../Core/Inc/radio_task.h
 ../Core/Inc/ball_detector_task.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
@@ -113,3 +114,4 @@ C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h:
 C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h:
 C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h:
 C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h:
+../Core/Inc/radio_task.h:

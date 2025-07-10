@@ -55,23 +55,22 @@ void RadioFunction(void const * argument) {
             setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
             dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
             kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
-            updateBuffer(txBuffer);
 
-            // --- Cambio a modo TX y envío de datos ---
-            nRF24_RX_OFF(&nrf_device);
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_TX);
-            while (nrf_config & nRF24_CONFIG_PRIM_RX) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
-            }
-            nRF24_TxPacket(&nrf_device, txBuffer, 32);
+            //
 
-            // --- Regreso a modo RX ---
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
-            while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
+            if (ball_posession == 0x00) {
+                if(ball_posession_last == 0x01) {
+                    // Si no se pierde la pelota, se manda mensaje
+                    ball_posession_last = 0x00;
+                    updateBuffer(txBuffer);
+                    Radio_SendPacket(&nrf_device, txBuffer, 32);
+                }
+            } else {
+                // si aun se tiene la pelota, no se actualiza el buffer   
             }
-            nRF24_RX_ON(&nrf_device);
-            nRF24_ClearIRQFlags(&nrf_device);
+        
+        } else {
+            // Si no se reciben datos no hace nada
         }
     }
 }
@@ -82,20 +81,20 @@ void updateBuffer(uint8_t *buffer) {
     // Fill buffer with zeros if necessary
     memset(&buffer[0], 0, 32);
 
-    float m0 = motor[0].measSpeed;
-    float m1 = motor[1].measSpeed;
-    float m2 = motor[2].measSpeed;
-    float m3 = motor[3].measSpeed;
-
     // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
     uint8_t id_bits = (robot_id << 3); // 3 bits for robot_id
     uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
     buffer[0] = id_bits | ball_bit;
 
-    memcpy(&buffer[1+4*0], &m0, sizeof(float));
-    memcpy(&buffer[1+4*1], &m1, sizeof(float));
-    memcpy(&buffer[1+4*2], &m2, sizeof(float));
-    memcpy(&buffer[1+4*3], &m3, sizeof(float));
+    //float m0 = motor[0].measSpeed;
+    //float m1 = motor[1].measSpeed;
+    //float m2 = motor[2].measSpeed;
+    //float m3 = motor[3].measSpeed;
+
+    //memcpy(&buffer[1+4*0], &m0, sizeof(float));
+    //memcpy(&buffer[1+4*1], &m1, sizeof(float));
+    //memcpy(&buffer[1+4*2], &m2, sizeof(float));
+    //memcpy(&buffer[1+4*3], &m3, sizeof(float));
 
 }
 
@@ -121,4 +120,22 @@ void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
     nRF24_CE_State(device, GPIO_PIN_RESET);
 
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
+}
+
+// Cambia a modo TX, envía un paquete y regresa a modo RX
+void Radio_SendPacket(nRF24_Handler_t *device, uint8_t *txBuffer, uint32_t len) {
+    extern uint8_t nrf_config;
+    nRF24_RX_OFF(device);
+    nRF24_SetOperationalMode(device, nRF24_MODE_TX);
+    while (nrf_config & nRF24_CONFIG_PRIM_RX) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_TxPacket(device, txBuffer, len);
+
+    nRF24_SetOperationalMode(device, nRF24_MODE_RX);
+    while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_RX_ON(device);
+    nRF24_ClearIRQFlags(device);
 }
