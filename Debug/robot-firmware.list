@@ -615,7 +615,7 @@ void DriveFunction(void const * argument)
  800072a:	4b8a      	ldr	r3, [pc, #552]	@ (8000954 <DriveFunction+0x320>)
  800072c:	2201      	movs	r2, #1
  800072e:	f883 2050 	strb.w	r2, [r3, #80]	@ 0x50
-    motor[0].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[0].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
  8000732:	4b88      	ldr	r3, [pc, #544]	@ (8000954 <DriveFunction+0x320>)
  8000734:	4a8c      	ldr	r2, [pc, #560]	@ (8000968 <DriveFunction+0x334>)
  8000736:	64da      	str	r2, [r3, #76]	@ 0x4c
@@ -668,7 +668,7 @@ void DriveFunction(void const * argument)
  800079c:	4b6d      	ldr	r3, [pc, #436]	@ (8000954 <DriveFunction+0x320>)
  800079e:	2201      	movs	r2, #1
  80007a0:	f883 20cc 	strb.w	r2, [r3, #204]	@ 0xcc
-    motor[1].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[1].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
  80007a4:	4b6b      	ldr	r3, [pc, #428]	@ (8000954 <DriveFunction+0x320>)
  80007a6:	4a70      	ldr	r2, [pc, #448]	@ (8000968 <DriveFunction+0x334>)
  80007a8:	f8c3 20c8 	str.w	r2, [r3, #200]	@ 0xc8
@@ -721,7 +721,7 @@ void DriveFunction(void const * argument)
  8000810:	4b50      	ldr	r3, [pc, #320]	@ (8000954 <DriveFunction+0x320>)
  8000812:	2201      	movs	r2, #1
  8000814:	f883 2148 	strb.w	r2, [r3, #328]	@ 0x148
-    motor[2].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[2].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
  8000818:	4b4e      	ldr	r3, [pc, #312]	@ (8000954 <DriveFunction+0x320>)
  800081a:	4a53      	ldr	r2, [pc, #332]	@ (8000968 <DriveFunction+0x334>)
  800081c:	f8c3 2144 	str.w	r2, [r3, #324]	@ 0x144
@@ -774,7 +774,7 @@ void DriveFunction(void const * argument)
  8000882:	4b34      	ldr	r3, [pc, #208]	@ (8000954 <DriveFunction+0x320>)
  8000884:	2201      	movs	r2, #1
  8000886:	f883 21c4 	strb.w	r2, [r3, #452]	@ 0x1c4
-    motor[3].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[3].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
  800088a:	4b32      	ldr	r3, [pc, #200]	@ (8000954 <DriveFunction+0x320>)
  800088c:	4a36      	ldr	r2, [pc, #216]	@ (8000968 <DriveFunction+0x334>)
  800088e:	f8c3 21c0 	str.w	r2, [r3, #448]	@ 0x1c0
@@ -881,7 +881,7 @@ void DriveFunction(void const * argument)
  800095c:	40000424 	.word	0x40000424
  8000960:	40000400 	.word	0x40000400
  8000964:	45000000 	.word	0x45000000
- 8000968:	3f714639 	.word	0x3f714639
+ 8000968:	3dc104fb 	.word	0x3dc104fb
  800096c:	40020800 	.word	0x40020800
  8000970:	40020c00 	.word	0x40020c00
  8000974:	40010424 	.word	0x40010424
