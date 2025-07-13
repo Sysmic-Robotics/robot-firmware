@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include "radio_task.h"
 #include "system_globals.h"
 #include "nrf24.h"
@@ -55,47 +56,55 @@ void RadioFunction(void const * argument) {
             setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
             dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
             kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
-            updateBuffer(txBuffer);
 
-            // --- Cambio a modo TX y envío de datos ---
-            nRF24_RX_OFF(&nrf_device);
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_TX);
-            while (nrf_config & nRF24_CONFIG_PRIM_RX) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
+            //Manda ball_posession solo si se tiene o se tuvo el frame anterior
+            if ( ball_posession == 0x01){
+                updateBuffer(txBuffer,0); // 0 usa ball_posession
+                Radio_SendPacket(&nrf_device, txBuffer, 32);
+                ball_posession_last = 0x01;
+            }else {
+                if (ball_posession_last == 0x01)
+                {
+                    updateBuffer(txBuffer,1); // 1 usa ball_posession_last
+                    Radio_SendPacket(&nrf_device, txBuffer, 32);
+                    ball_posession_last = 0x00;
+                }else{
+                    updateBuffer(txBuffer,0); // 0 usa ball_posession
+                    Radio_SendPacket(&nrf_device, txBuffer, 32);
+                }
             }
-            nRF24_TxPacket(&nrf_device, txBuffer, 32);
-
-            // --- Regreso a modo RX ---
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
-            while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
-            }
-            nRF24_RX_ON(&nrf_device);
-            nRF24_ClearIRQFlags(&nrf_device);
         }
     }
 }
 
 
-void updateBuffer(uint8_t *buffer) {
+void updateBuffer(uint8_t *buffer, bool last_possession) {
 
     // Fill buffer with zeros if necessary
     memset(&buffer[0], 0, 32);
 
+    
+    // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
+    uint8_t id_bits = (robot_id << 3); // 3 bits for robot_id
+    uint8_t ball_bit =0;
+    if (last_possession) {
+        ball_bit = (ball_posession_last == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
+    } else {
+        ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
+    }
+    buffer[0] = id_bits | ball_bit;
+
+    /*
     float m0 = motor[0].measSpeed;
     float m1 = motor[1].measSpeed;
     float m2 = motor[2].measSpeed;
     float m3 = motor[3].measSpeed;
 
-    // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
-    uint8_t id_bits = (robot_id << 3); // 3 bits for robot_id
-    uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
-    buffer[0] = id_bits | ball_bit;
-
     memcpy(&buffer[1+4*0], &m0, sizeof(float));
     memcpy(&buffer[1+4*1], &m1, sizeof(float));
     memcpy(&buffer[1+4*2], &m2, sizeof(float));
     memcpy(&buffer[1+4*3], &m3, sizeof(float));
+    */
 
 }
 
@@ -121,4 +130,21 @@ void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
     nRF24_CE_State(device, GPIO_PIN_RESET);
 
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
+}
+
+void Radio_SendPacket(nRF24_Handler_t *device, uint8_t *buffer, uint8_t len) {
+    nRF24_RX_OFF(device);
+    nRF24_SetOperationalMode(device, nRF24_MODE_TX);
+    while (nrf_config & nRF24_CONFIG_PRIM_RX) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_TxPacket(device, buffer, len);
+
+    // --- Regreso a modo RX ---
+    nRF24_SetOperationalMode(device, nRF24_MODE_RX);
+    while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_RX_ON(device);
+    nRF24_ClearIRQFlags(device);
 }
