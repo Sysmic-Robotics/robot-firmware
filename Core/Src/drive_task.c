@@ -60,7 +60,7 @@ void DriveFunction(void const * argument)
     motor[0].encoder.count = &TIM3->CNT;
     motor[0].encoder.oldPos = TIM3->CNT / ENCODER_CPR;
     motor[0].encoder.enable = ENCODER_STATUS_ENABLE;
-    motor[0].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[0].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM3->CR1 = TIM_CR1_CEN;
 
     // Motor 2
@@ -73,7 +73,7 @@ void DriveFunction(void const * argument)
     motor[1].encoder.count = &TIM8->CNT;
     motor[1].encoder.oldPos = TIM8->CNT / ENCODER_CPR;
     motor[1].encoder.enable = ENCODER_STATUS_ENABLE;
-    motor[1].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[1].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM8->CR1 = TIM_CR1_CEN;
 
     // Motor 3
@@ -86,7 +86,7 @@ void DriveFunction(void const * argument)
     motor[2].encoder.count = &TIM2->CNT;
     motor[2].encoder.oldPos = TIM2->CNT / ENCODER_CPR;
     motor[2].encoder.enable = ENCODER_STATUS_ENABLE;
-    motor[2].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[2].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM2->CR1 = TIM_CR1_CEN;
 
     // Motor 4
@@ -99,7 +99,7 @@ void DriveFunction(void const * argument)
     motor[3].encoder.count = &TIM5->CNT;
     motor[3].encoder.oldPos = TIM5->CNT / ENCODER_CPR;
     motor[3].encoder.enable = ENCODER_STATUS_ENABLE;
-    motor[3].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.01f;
+    motor[3].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM5->CR1 = TIM_CR1_CEN;
 
     // Config PID
