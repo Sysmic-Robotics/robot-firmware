@@ -14,7 +14,7 @@
 #define ROBOT_MAX_LINEAR_VEL 2.5f // En m/s
 #define ANGULAR_SPEED_FACTOR  30.0f
 #define DRIBBLER_CONV(x)      ((x) * (1023.0f / 7.0f))
-#define VL6180X_THRESHOLD     65
+#define VL6180X_THRESHOLD     65 // en mm
 #define VL6180X_SAMPLE_TIME   50
 #define nRF24L01_SYSMIC_CHANNEL 0x6B
 
@@ -60,6 +60,7 @@ extern osMessageQId kickQueueHandle;
 // --- BALL DETECTOR TASK ---
 extern VL6180X_Handler_t range_sensor;
 extern uint8_t ball_posession;
+extern uint8_t radioTx_counter;
 extern uint16_t ball_range;
 extern uint16_t ball_accum;
 extern uint8_t ball_meas_set[10];

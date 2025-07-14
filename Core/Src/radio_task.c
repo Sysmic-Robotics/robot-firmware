@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include "radio_task.h"
 #include "system_globals.h"
 #include "nrf24.h"
@@ -37,16 +38,9 @@ void RadioFunction(void const * argument) {
         nrf_config = nRF24_GetConfig(&nrf_device);
 
 
-        //memset(txBuffer, 0, 32);
-        //updateBuffer(txBuffer);
-        //txBuffer[28] = fokk++;
-        //HAL_UART_Transmit(&huart5, txBuffer,32,HAL_MAX_DELAY);
-        //osDelay(10);
         // Si hay datos recibidos
         if (nrf_status & nRF24_FLAG_RX_DR) {
             // --- Procesamiento de datos recibidos ---
-
-
 
             nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
             nRF24_FlushRX(&nrf_device);
@@ -55,23 +49,18 @@ void RadioFunction(void const * argument) {
             setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
             dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
             kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
-            updateBuffer(txBuffer);
 
-            // --- Cambio a modo TX y envío de datos ---
-            nRF24_RX_OFF(&nrf_device);
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_TX);
-            while (nrf_config & nRF24_CONFIG_PRIM_RX) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
+            //Manda ball_posession solo si se tiene o se tuvo el frame anterior
+            if ( radioTx_counter == robot_id){
+                updateBuffer(txBuffer); // 0 usa ball_posession
+                Radio_SendPacket(&nrf_device, txBuffer, 32);
+            }else {
+                if (radioTx_counter == 16){
+                    radioTx_counter = 0;
+                }else{
+                    radioTx_counter = radioTx_counter + 1;
+                }
             }
-            nRF24_TxPacket(&nrf_device, txBuffer, 32);
-
-            // --- Regreso a modo RX ---
-            nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
-            while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
-                nrf_config = nRF24_GetConfig(&nrf_device);
-            }
-            nRF24_RX_ON(&nrf_device);
-            nRF24_ClearIRQFlags(&nrf_device);
         }
     }
 }
@@ -82,20 +71,26 @@ void updateBuffer(uint8_t *buffer) {
     // Fill buffer with zeros if necessary
     memset(&buffer[0], 0, 32);
 
-    float m0 = motor[0].measSpeed;
-    float m1 = motor[1].measSpeed;
-    float m2 = motor[2].measSpeed;
-    float m3 = motor[3].measSpeed;
-
+    
     // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
     uint8_t id_bits = (robot_id << 3); // 3 bits for robot_id
     uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
     buffer[0] = id_bits | ball_bit;
 
-    memcpy(&buffer[1+4*0], &m0, sizeof(float));
-    memcpy(&buffer[1+4*1], &m1, sizeof(float));
-    memcpy(&buffer[1+4*2], &m2, sizeof(float));
-    memcpy(&buffer[1+4*3], &m3, sizeof(float));
+    memcpy(&buffer[1], &ball_range, sizeof(uint16_t));
+
+
+    /*
+    float m0 = motor[0].measSpeed;
+    float m1 = motor[1].measSpeed;
+    float m2 = motor[2].measSpeed;
+    float m3 = motor[3].measSpeed;
+
+    memcpy(&buffer[3+4*0], &m0, sizeof(float));
+    memcpy(&buffer[3+4*1], &m1, sizeof(float));
+    memcpy(&buffer[3+4*2], &m2, sizeof(float));
+    memcpy(&buffer[3+4*3], &m3, sizeof(float));
+    */
 
 }
 
@@ -121,4 +116,21 @@ void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
     nRF24_CE_State(device, GPIO_PIN_RESET);
 
     HAL_GPIO_WritePin(GPIOI, GPIO_PIN_12, GPIO_PIN_RESET);
+}
+
+void Radio_SendPacket(nRF24_Handler_t *device, uint8_t *buffer, uint8_t len) {
+    nRF24_RX_OFF(device);
+    nRF24_SetOperationalMode(device, nRF24_MODE_TX);
+    while (nrf_config & nRF24_CONFIG_PRIM_RX) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_TxPacket(device, buffer, len);
+
+    // --- Regreso a modo RX ---
+    nRF24_SetOperationalMode(device, nRF24_MODE_RX);
+    while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
+        nrf_config = nRF24_GetConfig(device);
+    }
+    nRF24_RX_ON(device);
+    nRF24_ClearIRQFlags(device);
 }
