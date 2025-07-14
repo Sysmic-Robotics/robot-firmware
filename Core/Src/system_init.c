@@ -17,6 +17,7 @@ void MX_TIM8_Init(void);
 void MX_I2C3_Init(void);
 void MX_UART5_Init(void);
 void MX_DMA_Init(void);
+void MX_TIM6_Init(void);
 
 
 // Implementaciones de inicialización y configuración del sistema
@@ -71,6 +72,36 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+/**
+  * @brief TIM6 Initialization Function for 0.1ms encoder update
+  * @retval None
+  */
+void MX_TIM6_Init(void)
+{
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  __HAL_RCC_TIM6_CLK_ENABLE();
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 108 - 1;  // Timer clock 108MHz/108 =1MHz
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 100 - 1;      // 100 ticks = 100us
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+  if (HAL_TIM_Base_Start_IT(&htim6) != HAL_OK)
   {
     Error_Handler();
   }

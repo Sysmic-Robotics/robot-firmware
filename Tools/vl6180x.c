@@ -4,6 +4,7 @@
 ///! period between each measurement when in continuous mode
 
 #include "vl6180x.h"
+#include "cmsis_os.h"    
 
 #define SYSRANGE__INTERMEASUREMENT_PERIOD 0x001b
 // P19 application notes
@@ -117,7 +118,7 @@ void VL6180X_LoadSettings(VL6180X_Handler_t *device) {
   // Recommended : Public registers - See data sheet for more detail
   VL6180X_Write8(device, 0x0011, 0x10); // Enables polling for 'New Sample ready'
                         // when measurement completes
-  VL6180X_Write8(device, 0x010a, 0x30); // Set the averaging sample period
+  VL6180X_Write8(device, 0x010a, 0x2C); // Set the averaging sample period // en 0x30=48 para muestrear cada 5ms
                         // (compromise between lower noise and
                         // increased execution time)
   VL6180X_Write8(device, 0x003f, 0x46); // Sets the light and dark gain (upper
@@ -155,6 +156,7 @@ uint8_t VL6180X_ReadRange(VL6180X_Handler_t *device) {
   // Start a range measurement
   VL6180X_Write8(device, VL6180X_REG_SYSRANGE_START, 0x01);
 
+  osDelay(5); //deberia demorar 4.3 ms por lo que se esperan 5 ticks de 5ms para no bloquear sistema
   // Poll until bit 2 is set
   while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04));
 

@@ -30,7 +30,7 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 	*/
 	/* TESTING */
 	int16_t encPos = (int16_t)*encoderDevice->count;
-	float encPosF = fabs((float)encPos) < 2.0f ? 0.0f : (float)encPos;
+	float encPosF = fabs((float)encPos) < 1.0f ? 0.0f : (float)encPos;
 
 	*encoderDevice->count = 0;
 	float speed = encPosF * 2 * M_PI / (ENCODER_CPR * sampleTime);

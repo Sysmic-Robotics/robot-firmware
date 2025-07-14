@@ -114,6 +114,7 @@ typedef struct Motor_Handler
 	uint8_t outputID;
 	volatile float refSpeed;
 	volatile float measSpeed;
+	volatile float measSpeedMean;
 
 	uint16_t voltage;
 	Motor_Status_t enable;
@@ -132,5 +133,8 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable);
 void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake);
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);
+
+// Tamaño del buffer circular de velocidad
+#define ENCODER_BUF_SIZE 10
 
 #endif

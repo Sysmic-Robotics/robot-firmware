@@ -11,12 +11,19 @@
 
 #include "motor.h"
 
+// Tamaño de buffer circular para las últimas muestras de velocidad
+#define ENCODER_BUF_SIZE 10
+static float encBuf[4][ENCODER_BUF_SIZE] = {{0}};
+static uint8_t encIdx[4] = {0};
+static uint8_t encCount[4] = {0};
+
 void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t enable)
 {
 	motorDevice->enable = enable;
 	motorDevice->outputID = motorID;
 	motorDevice->refSpeed = 0;
 	motorDevice->measSpeed = 0;
+	motorDevice->measSpeedMean = 0;
 	Motor_Enable(motorDevice, enable);
 }
 
@@ -39,8 +46,9 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
   */
 	/* Apply PID */
 	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
-	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
-	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
+	// measSpeed esta siendo actualizado por TIM6 rellenando el buffer encoderBuf
+	motorDevice->measSpeedMean = EncoderBuf_GetAvg(motorDevice->outputID);
+	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeedMean);
 	
 	if(fabs(motorDevice->pid.output) < 4.0)	{
 		motorDevice->pid.output = 0.0;

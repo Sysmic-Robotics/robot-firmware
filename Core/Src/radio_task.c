@@ -81,10 +81,10 @@ void updateBuffer(uint8_t *buffer) {
 
 
     /*
-    float m0 = motor[0].measSpeed;
-    float m1 = motor[1].measSpeed;
-    float m2 = motor[2].measSpeed;
-    float m3 = motor[3].measSpeed;
+    float m0 = motor[0].measSpeedMean;
+    float m1 = motor[1].measSpeedMean;
+    float m2 = motor[2].measSpeedMean;
+    float m3 = motor[3].measSpeedMean;
 
     memcpy(&buffer[3+4*0], &m0, sizeof(float));
     memcpy(&buffer[3+4*1], &m1, sizeof(float));

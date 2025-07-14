@@ -58,6 +58,7 @@ extern DMA_HandleTypeDef hdma_uart5_tx;
 
 /* External variables --------------------------------------------------------*/
 extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN EV */
 
@@ -183,6 +184,13 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 void DMA1_Stream7_IRQHandler(void)
 {
     HAL_DMA_IRQHandler(&hdma_uart5_tx);
+}
+/**
+  * @brief This function handles TIM6 global interrupt (for encoder update).
+  */
+void TIM6_DAC_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&htim6);
 }
 
 
