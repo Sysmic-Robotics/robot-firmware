@@ -107,6 +107,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
     // Implementar manejo de error si es necesario
+    NVIC_SystemReset();
 }
 
 #ifdef  USE_FULL_ASSERT
