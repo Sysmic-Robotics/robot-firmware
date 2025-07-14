@@ -12,7 +12,7 @@
 #include "string.h"
 #include "motor.h"
 #include "vl6180x.h"
-#include "drive_task.h"
+#include "drive_task.h"  // Para EncoderBuf_Push API
 #include "radio_task.h"
 #include "kick_task.h"
 #include "ball_detector_task.h"
@@ -31,6 +31,7 @@ void MX_TIM3_Init(void);
 void MX_TIM5_Init(void);
 void MX_TIM8_Init(void);
 void MX_I2C3_Init(void);
+void MX_TIM6_Init(void);
 void DriveFunction(void const * argument);
 void RadioFunction(void const * argument);
 void KickFunction(void const * argument);
@@ -49,6 +50,7 @@ int main(void)
     MX_TIM8_Init();
     MX_I2C3_Init();
     MX_UART5_Init();
+    MX_TIM6_Init();
 
     // AGREGAR: Inicialización explícita de motores
     Motor_Init(&motor[0], 0, MOTOR_STATUS_DISABLE);  // ← DISABLE al inicio
@@ -95,11 +97,20 @@ int main(void)
     while (1) {}
 }
 
+
 // Callback de periodo de timer (para HAL)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM1) {
         HAL_IncTick();
+    } else if (htim->Instance == TIM6) {
+        /* Encoder update every 0.1ms */
+        const float sampleTime = 0.0001f;
+        for (int i = 0; i < 4; i++) {
+            motor[i].measSpeed = Encoder_Update(&motor[i].encoder, sampleTime);
+            // Guardar muestra en buffer interno de drive_task
+            EncoderBuf_Push(i, motor[i].measSpeed);
+        }
     }
 }
 

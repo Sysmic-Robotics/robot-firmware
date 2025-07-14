@@ -26,6 +26,12 @@
 #define KICKER_START 2
 #endif
 
+// Buffer circular de 10 muestras para velocidad de encoder (sólo en este módulo)
+#define ENCODER_BUF_SIZE 10
+static float encoderBuf[4][ENCODER_BUF_SIZE] = {0};
+static uint8_t encoderBufIdx[4] = {0};
+static uint8_t encoderBufCount[4] = {0};
+
 void DriveFunction(void const * argument)
 {
     // Init PID sampler
@@ -196,4 +202,30 @@ void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 		/* Fill speed array. Speed in [m/s] */
 		velocity[i] = t_vel;
 	}
+}
+
+/* Añadir muestra al buffer circular */
+void EncoderBuf_Push(uint8_t motorIdx, float sample)
+{
+    encoderBuf[motorIdx][encoderBufIdx[motorIdx]] = sample;
+    encoderBufIdx[motorIdx] = (encoderBufIdx[motorIdx] + 1) % ENCODER_BUF_SIZE;
+    if (encoderBufCount[motorIdx] < ENCODER_BUF_SIZE) encoderBufCount[motorIdx]++;
+}
+
+/* Obtener promedio de muestras almacenadas */
+float EncoderBuf_GetAvg(uint8_t motorIdx)
+{
+    uint8_t count = encoderBufCount[motorIdx];
+    if (count == 0) return 0.0f;
+    float sum = 0.0f;
+    for (uint8_t i = 0; i < count; i++) {
+        sum += encoderBuf[motorIdx][i];
+    }
+    // Limpio el buffer para la próxima tanda de muestras
+    encoderBufCount[motorIdx] = 0;
+    encoderBufIdx[motorIdx]   = 0;
+    memset(encoderBuf[motorIdx], 0, sizeof(encoderBuf[motorIdx]));
+
+
+    return sum / count;
 }

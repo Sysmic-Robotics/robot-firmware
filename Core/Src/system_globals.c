@@ -57,6 +57,7 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim5;
 TIM_HandleTypeDef htim8;
+TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart5;
 DMA_HandleTypeDef hdma_uart5_tx;
 
