@@ -156,7 +156,9 @@ uint8_t VL6180X_ReadRange(VL6180X_Handler_t *device) {
   // Start a range measurement
   VL6180X_Write8(device, VL6180X_REG_SYSRANGE_START, 0x01);
 
+  //Todo: usar una flag en al interrucion de TIM6 para que CMSIS_RTOS sepa cuando volver aqui
   osDelay(5); //deberia demorar 4.3 ms por lo que se esperan 5 ticks de 5ms para no bloquear sistema
+  
   // Poll until bit 2 is set
   while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04));
 
