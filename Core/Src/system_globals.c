@@ -35,7 +35,7 @@ osEvent kicker_side = {0};
 // ===================== BALL DETECTOR TASK =====================
 VL6180X_Handler_t range_sensor = {0};
 uint8_t ball_posession = 0x00;
-uint8_t ball_posession_last = 0x00;
+uint8_t radioTx_counter = 0;
 uint16_t ball_range = 0;
 uint16_t ball_accum = 0;
 uint8_t ball_meas_set[10] = {0};
