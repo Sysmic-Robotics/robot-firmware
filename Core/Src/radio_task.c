@@ -38,16 +38,9 @@ void RadioFunction(void const * argument) {
         nrf_config = nRF24_GetConfig(&nrf_device);
 
 
-        //memset(txBuffer, 0, 32);
-        //updateBuffer(txBuffer);
-        //txBuffer[28] = fokk++;
-        //HAL_UART_Transmit(&huart5, txBuffer,32,HAL_MAX_DELAY);
-        //osDelay(10);
         // Si hay datos recibidos
         if (nrf_status & nRF24_FLAG_RX_DR) {
             // --- Procesamiento de datos recibidos ---
-
-
 
             nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
             nRF24_FlushRX(&nrf_device);
@@ -58,19 +51,14 @@ void RadioFunction(void const * argument) {
             kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
 
             //Manda ball_posession solo si se tiene o se tuvo el frame anterior
-            if ( ball_posession == 0x01){
-                updateBuffer(txBuffer,0); // 0 usa ball_posession
+            if ( radioTx_counter == robot_id){
+                updateBuffer(txBuffer); // 0 usa ball_posession
                 Radio_SendPacket(&nrf_device, txBuffer, 32);
-                ball_posession_last = 0x01;
             }else {
-                if (ball_posession_last == 0x01)
-                {
-                    updateBuffer(txBuffer,1); // 1 usa ball_posession_last
-                    Radio_SendPacket(&nrf_device, txBuffer, 32);
-                    ball_posession_last = 0x00;
+                if (radioTx_counter == 16){
+                    radioTx_counter = 0;
                 }else{
-                    updateBuffer(txBuffer,0); // 0 usa ball_posession
-                    Radio_SendPacket(&nrf_device, txBuffer, 32);
+                    radioTx_counter = radioTx_counter + 1;
                 }
             }
         }
@@ -78,7 +66,7 @@ void RadioFunction(void const * argument) {
 }
 
 
-void updateBuffer(uint8_t *buffer, bool last_possession) {
+void updateBuffer(uint8_t *buffer) {
 
     // Fill buffer with zeros if necessary
     memset(&buffer[0], 0, 32);
@@ -86,13 +74,11 @@ void updateBuffer(uint8_t *buffer, bool last_possession) {
     
     // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
     uint8_t id_bits = (robot_id << 3); // 3 bits for robot_id
-    uint8_t ball_bit =0;
-    if (last_possession) {
-        ball_bit = (ball_posession_last == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
-    } else {
-        ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
-    }
+    uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
     buffer[0] = id_bits | ball_bit;
+
+    memcpy(&buffer[1], &ball_range, sizeof(uint16_t));
+
 
     /*
     float m0 = motor[0].measSpeed;
@@ -100,10 +86,10 @@ void updateBuffer(uint8_t *buffer, bool last_possession) {
     float m2 = motor[2].measSpeed;
     float m3 = motor[3].measSpeed;
 
-    memcpy(&buffer[1+4*0], &m0, sizeof(float));
-    memcpy(&buffer[1+4*1], &m1, sizeof(float));
-    memcpy(&buffer[1+4*2], &m2, sizeof(float));
-    memcpy(&buffer[1+4*3], &m3, sizeof(float));
+    memcpy(&buffer[3+4*0], &m0, sizeof(float));
+    memcpy(&buffer[3+4*1], &m1, sizeof(float));
+    memcpy(&buffer[3+4*2], &m2, sizeof(float));
+    memcpy(&buffer[3+4*3], &m3, sizeof(float));
     */
 
 }
