@@ -61,4 +61,4 @@ UART_HandleTypeDef huart5;
 DMA_HandleTypeDef hdma_uart5_tx;
 
 // ===================== DRIBBLER SPEED SET =====================
-const uint16_t Dribbler_SpeedSet[] = {0, 200, 450, 700, 900, 1023}; // Ajusta los valores según tu aplicación
+const uint16_t Dribbler_SpeedSet[] = {0, 170, 341, 511, 682, 852, 1023}; // Ajusta los valores según tu aplicación
