@@ -51,16 +51,10 @@ void RadioFunction(void const * argument) {
             kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
 
             //Manda ball_posession solo si se tiene o se tuvo el frame anterior
-            if ( radioTx_counter == robot_id){
-                updateBuffer(txBuffer); // 0 usa ball_posession
-                Radio_SendPacket(&nrf_device, txBuffer, 32);
-            }else {
-                if (radioTx_counter == 16){
-                    radioTx_counter = 0;
-                }else{
-                    radioTx_counter = radioTx_counter + 1;
-                }
-            }
+            osDelay(robot_id);
+            updateBuffer(txBuffer); // 0 usa ball_posession
+            Radio_SendPacket(&nrf_device, txBuffer, 32);
+        
         }
     }
 }
@@ -73,7 +67,7 @@ void updateBuffer(uint8_t *buffer) {
 
     
     // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
-    uint8_t id_bits = (robot_id << 3); // 3 bits for robot_id
+    uint8_t id_bits = (robot_id << 5); // 3 bits for robot_id
     uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
     buffer[0] = id_bits | ball_bit;
 
