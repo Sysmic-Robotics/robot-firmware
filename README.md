@@ -1,7 +1,7 @@
 
 # Sysmic Robotics Firmware
 
-Firmware académico y de investigación para robots autónomos basados en microcontroladores **STM32F7**. El sistema implementa control en tiempo real, comunicación inalámbrica y gestión de actuadores/sensores, empleando una arquitectura modular y orientada a tareas bajo **FreeRTOS**.
+Firmware académico y de investigación desarrollado por el equipo **Sysmic Robotics** de la Universidad Técnica Federico Santa María (UTFSM), orientado a la competencia internacional **RoboCup**. El sistema está diseñado para robots autónomos basados en microcontroladores **STM32F7** e implementa control en tiempo real, comunicación inalámbrica y gestión de actuadores/sensores, empleando una arquitectura modular y orientada a tareas bajo **FreeRTOS**.
 
 ---
 
@@ -81,17 +81,6 @@ El firmware utiliza **FreeRTOS** para la gestión de tareas concurrentes, tempor
 ---
 
 
-## Principales Contribuciones
-
-- Arquitectura modular basada en FreeRTOS para tareas concurrentes.
-- Implementación de control de motores con lazo cerrado (PID).
-- Comunicación inalámbrica robusta mediante NRF24L01.
-- Integración de sensores de distancia (VL6180X) y detección de balón.
-- Módulo de control de pateo y dribbler para robots de fútbol.
-- Abstracción de hardware y drivers reutilizables para STM32F7.
-
----
-
 ## Detalles de Hardware
 
 - **Microcontrolador:** STM32F767BIT6 (Cortex-M7, 216 MHz, FPU, 512 KB RAM, 2 MB Flash)
@@ -114,4 +103,4 @@ El diseño de hardware está orientado a robots móviles de competencia (ej. fú
 
 ## Licencia
 
-Proyecto académico de **Sysmic Robotics**. Uso restringido a fines educativos e investigación. Para uso comercial, contactar a los desarrolladores.
+Proyecto académico de **Sysmic Robotics**. Uso restringido a fines educativos e investigación.
