@@ -56,10 +56,10 @@ int main(void)
     Motor_Init(&motor[2], 2, MOTOR_STATUS_DISABLE);
     Motor_Init(&motor[3], 3, MOTOR_STATUS_DISABLE);
 
-    kinematic[0][0] = -1/sin(WHEEL_ANGlE_1); kinematic[0][1] = 1/cos(WHEEL_ANGlE_1); kinematic[0][2] = ROBOT_RADIO;
-    kinematic[1][0] = -1/sin(WHEEL_ANGlE_2); kinematic[1][1] = 1/cos(WHEEL_ANGlE_2); kinematic[1][2] = ROBOT_RADIO;
-    kinematic[2][0] = -1/sin(WHEEL_ANGlE_3); kinematic[2][1] = 1/cos(WHEEL_ANGlE_3); kinematic[2][2] = ROBOT_RADIO;
-    kinematic[3][0] = -1/sin(WHEEL_ANGlE_4); kinematic[3][1] = 1/cos(WHEEL_ANGlE_4); kinematic[3][2] = ROBOT_RADIO;
+    kinematic[0][0] = -sin(WHEEL_ANGlE_1); kinematic[0][1] = cos(WHEEL_ANGlE_1); kinematic[0][2] = ROBOT_RADIO;
+    kinematic[1][0] = -sin(WHEEL_ANGlE_2); kinematic[1][1] = cos(WHEEL_ANGlE_2); kinematic[1][2] = ROBOT_RADIO;
+    kinematic[2][0] = -sin(WHEEL_ANGlE_3); kinematic[2][1] = cos(WHEEL_ANGlE_3); kinematic[2][2] = ROBOT_RADIO;
+    kinematic[3][0] = -sin(WHEEL_ANGlE_4); kinematic[3][1] = cos(WHEEL_ANGlE_4); kinematic[3][2] = ROBOT_RADIO;
 
     // Parpadeo de LEDs para indicar inicio
     for (uint8_t i = 0; i < 5; i++) {

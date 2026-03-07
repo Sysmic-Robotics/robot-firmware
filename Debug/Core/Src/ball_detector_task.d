@@ -50,12 +50,12 @@ Core/Src/ball_detector_task.o: ../Core/Src/ball_detector_task.c \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/motor.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/encoder.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h
+ /home/rorosierra/dev/robot-firmware/Tools/motor.h \
+ /home/rorosierra/dev/robot-firmware/Tools/encoder.h \
+ /home/rorosierra/dev/robot-firmware/Tools/PID.h \
+ /home/rorosierra/dev/robot-firmware/Tools/MAX581x.h \
+ /home/rorosierra/dev/robot-firmware/Tools/nrf24.h \
+ /home/rorosierra/dev/robot-firmware/Tools/vl6180x.h
 ../Core/Inc/ball_detector_task.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h:
@@ -107,9 +107,9 @@ Core/Src/ball_detector_task.o: ../Core/Src/ball_detector_task.c \
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_tim_ex.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_uart_ex.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/motor.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/encoder.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h:
+/home/rorosierra/dev/robot-firmware/Tools/motor.h:
+/home/rorosierra/dev/robot-firmware/Tools/encoder.h:
+/home/rorosierra/dev/robot-firmware/Tools/PID.h:
+/home/rorosierra/dev/robot-firmware/Tools/MAX581x.h:
+/home/rorosierra/dev/robot-firmware/Tools/nrf24.h:
+/home/rorosierra/dev/robot-firmware/Tools/vl6180x.h:

@@ -1,5 +1,5 @@
 Core/Src/radio_task.o: ../Core/Src/radio_task.c ../Core/Inc/radio_task.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h \
+ /home/rorosierra/dev/robot-firmware/Tools/nrf24.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h \
  ../Core/Inc/stm32f7xx_hal_conf.h \
  ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc.h \
@@ -50,15 +50,15 @@ Core/Src/radio_task.o: ../Core/Src/radio_task.c ../Core/Inc/radio_task.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
  ../Core/Inc/system_globals.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/motor.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/encoder.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h \
- C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/board.h \
+ /home/rorosierra/dev/robot-firmware/Tools/motor.h \
+ /home/rorosierra/dev/robot-firmware/Tools/encoder.h \
+ /home/rorosierra/dev/robot-firmware/Tools/PID.h \
+ /home/rorosierra/dev/robot-firmware/Tools/MAX581x.h \
+ /home/rorosierra/dev/robot-firmware/Tools/vl6180x.h \
+ /home/rorosierra/dev/robot-firmware/Tools/board.h \
  ../Core/Inc/kick_task.h ../Core/Inc/drive_task.h
 ../Core/Inc/radio_task.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h:
+/home/rorosierra/dev/robot-firmware/Tools/nrf24.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal.h:
 ../Core/Inc/stm32f7xx_hal_conf.h:
 ../Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_rcc.h:
@@ -109,11 +109,11 @@ C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/nrf24.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h:
 ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
 ../Core/Inc/system_globals.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/motor.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/encoder.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/pid.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/MAX581x.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/vl6180x.h:
-C:/Users/nicolas/Desktop/Sysmic/GithubSysmic/robot-firmware/Tools/board.h:
+/home/rorosierra/dev/robot-firmware/Tools/motor.h:
+/home/rorosierra/dev/robot-firmware/Tools/encoder.h:
+/home/rorosierra/dev/robot-firmware/Tools/PID.h:
+/home/rorosierra/dev/robot-firmware/Tools/MAX581x.h:
+/home/rorosierra/dev/robot-firmware/Tools/vl6180x.h:
+/home/rorosierra/dev/robot-firmware/Tools/board.h:
 ../Core/Inc/kick_task.h:
 ../Core/Inc/drive_task.h:
