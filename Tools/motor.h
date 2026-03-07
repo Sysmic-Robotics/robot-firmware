@@ -51,7 +51,7 @@
 #endif
 
 #include "encoder.h"
-#include "pid.h"
+#include "PID.h"
 #include "MAX581x.h"
 
 enum {
@@ -59,10 +59,10 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					60.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2					130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3					-130.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					-60.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_1					55.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					125.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					235.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					305.0f * M_PI / 180.0f
 
 
 /*#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
