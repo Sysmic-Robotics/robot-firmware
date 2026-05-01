@@ -118,6 +118,9 @@ void DriveFunction(void const * argument)
         Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
         Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
         PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
+
+        motor[i].ffVoltage = 300.0f;
+        motor[i].speedDeadband = WHEEL_MAX_SPEED_RAD * 0.005f;
     }
 
     // Infinite loop
