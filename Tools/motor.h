@@ -59,10 +59,10 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					55.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2					125.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3					235.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					305.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_1					40.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					140.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					210.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					330.0f * M_PI / 180.0f
 
 
 /*#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
@@ -117,6 +117,9 @@ typedef struct Motor_Handler
 
 	uint16_t voltage;
 	Motor_Status_t enable;
+
+	float ffVoltage;
+	float speedDeadband;
 } Motor_Handler_t;
 
 void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t enable);

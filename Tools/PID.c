@@ -58,6 +58,11 @@ void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure)
 		pid->output = pid->params.outputMin;
 	}
 
+	if (pid->output == pid->params.outputMin || pid->output == pid->params.outputMax)
+	{
+		pid->integral -= pid->error * pid->params.Ki;
+	}
+
 	pid->lastMeasure = measure;
 }
 
