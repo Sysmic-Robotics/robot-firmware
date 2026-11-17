@@ -1,0 +1,19 @@
+
+======================================================================
+  fixture_engine_vx_step_1khz.csv
+  Duration: 1.2s  |  Samples: 1166  |  Columns: 11
+  Command col: Vx_Command
+======================================================================
+
+  ── Step 1: 0.0 → 1.0  (0.800s) ──
+    RobotID               gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Team                  gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Vy_Command            gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Angular_Command       gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Pos_X                 gain=0.503   ss=0.503   err=0.497   482ms   lat=45ms   OS=22.5%   Tp=799ms   Ts2=799ms   Ts5=799ms   ⚠ NOISY
+    Pos_Y                 gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Orientation           gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Vx_Actual             gain=0.946   ss=0.946   err=0.054   151ms   lat=28ms   OS=3.1%   Tp=728ms   Ts2=793ms   Ts5=417ms
+    Vy_Actual             gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+
+✓ Metrics exported to /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/partA_csv_analyzer_step_1khz.json

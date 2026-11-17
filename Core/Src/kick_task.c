@@ -3,47 +3,59 @@
 #include "cmsis_os.h"
 #include "stm32f7xx_hal.h"
 
-void KickFunction(void const * argument)
+static void charge_capacitor(void)
 {
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_SET);
+    osDelay(4000);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_RESET);
+
+    osMutexAcquire(kickFlagHandle, osWaitForever);
+    kick_flag = KICKER_CHARGED;
+    osMutexRelease(kickFlagHandle);
+}
+
+static void fire_kicker(void)
+{
+    HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_SET);
+    osDelay(10);
+    HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_RESET);
+
+    osMutexAcquire(kickFlagHandle, osWaitForever);
+    kick_flag = KICKER_DISCHARGED;
+    osMutexRelease(kickFlagHandle);
+
+    kick_count++;
+}
+
+void KickFunction(void *argument)
+{
+    charge_capacitor();
+
     for(;;)
     {
-        // --- Cargar el capacitor del kicker ---
-        HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_SET);
-        osDelay(4000);
-        HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4, GPIO_PIN_RESET);
+        while (!kick_sel) {
+            osDelay(10);
+        }
 
-        // --- Marcar kicker como cargado ---
-        osMutexWait(kickFlagHandle, osWaitForever);
-        kick_flag = KICKER_CHARGED;
-        osMutexRelease(kickFlagHandle);
+        uint32_t _mq_msg;
+        osStatus_t status = osMessageQueueGet(kickQueueHandle, &_mq_msg, NULL, 5000);
+        if (status != osOK) continue;
 
-        // --- Esperar evento de disparo ---
-        osEvent kicker_side = osMessageGet(kickQueueHandle, osWaitForever);
-
-        // --- Activar el kicker (disparo) ---
-        HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_SET);
-        osDelay(10);
-        HAL_GPIO_WritePin(GPIOF, GPIO_PIN_11, GPIO_PIN_RESET);
-
-        // --- Marcar kicker como descargado ---
-        osMutexWait(kickFlagHandle, osWaitForever);
-        kick_flag = KICKER_DISCHARGED;
-        osMutexRelease(kickFlagHandle);
-
-        // --- Contador de disparos ---
-        kick_count++;
+        fire_kicker();
+        charge_capacitor();
     }
 }
 
-uint8_t getDribbler_speed(uint8_t *buffer)
+uint8_t getDribblerSpeedIndex(uint8_t *buffer)
 {
-	/* Extract info from data packet */
-	uint8_t dribbler_vel = (buffer[0] & 0x1C) >> 2;
+	/* Extract info from data packet (bits [4:3]) */
+	uint8_t dribbler_vel = (buffer[0] & 0x18) >> 3;
+	if (dribbler_vel > 3) dribbler_vel = 3;
 
 	return dribbler_vel;
 }
 
-uint8_t getKickerStatus(uint8_t *buffer)
+uint8_t getKickTriggerFlag(uint8_t *buffer)
 {
 	/* Extract info from data packet */
 	uint8_t kick_stat = buffer[0] & 0x02 ? 0x01 : 0x00;

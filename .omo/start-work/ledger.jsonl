@@ -1,0 +1,26 @@
+{"event": "manual-qa-procedure", "plan": "implementation-plan", "task": "F2", "qa_steps": [
+  {"bug": "#1 Test mode mapping", "procedure": [
+    "stm32monitor native write test_enable 1",
+    "Send radio command with vx=0.2, vy=0.5",
+    "stm32monitor native read test_motor  -> expect 2 (0.2*10=2)",
+    "stm32monitor native read test_voltage -> expect 500.0 (0.5*1000=500)",
+    "stm32monitor live motor[0].measSpeed motor[1].measSpeed motor[2].measSpeed motor[3].measSpeed",
+    "Only test_motor wheel should spin (others coast)",
+    "stm32monitor native write test_enable 0  # restore"
+  ]},
+  {"bug": "#2 kick_sel auto-reset", "procedure": [
+    "Live watch: stm32monitor live kick_sel kick_flag kick_count",
+    "Send kick command via radio (or simulate kick trigger)",
+    "Observe kick_sel=1 -> kick_flag=CHARGING -> CHARGED -> DISCHARGED",
+    "Observe kick_sel returns to 0 after one cycle",
+    "Observe kick_count increments by exactly 1",
+    "Wait 10 seconds: confirm NO automatic re-kick (kick_count stays same)"
+  ]},
+  {"bug": "#3 vth mask fix", "procedure": [
+    "stm32monitor native write pid_vth_enable 0",
+    "Send radio command with vth=2.0 rad/s",
+    "stm32monitor native read v_vel[2] -> expect ~2.00 (if within ±5.11 range)",
+    "Send max vth (all bits high): expect v_vel[2] ≈ 5.11 rad/s (was 10.23)",
+    "stm32monitor native write pid_vth_enable 1  # restore"
+  ]}
+]}

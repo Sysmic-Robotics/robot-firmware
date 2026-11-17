@@ -1,0 +1,95 @@
+TASK-1 EVIDENCE: velocity_step_test.lua per-axis step-test harness
+====================================================================
+Date: 2026-08-06
+File rewritten: /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/velocity_step_test.lua
+Backup:          /home/sysmic/Desktop/SysmicProyect/robot/.omo/backups/velocity_step_test.lua.orig
+Other files touched: NONE (verified: only velocity_step_test.lua written; no new files in engine/)
+
+--------------------------------------------------------------------
+1. LUA LOAD CHECK
+--------------------------------------------------------------------
+RESULT: lua interpreter NOT installed on this system.
+
+Probe performed:
+  which lua5.4 lua luac luac5.4 luac5.3 lua5.3  -> no output (none found)
+  for b in lua lua5.4 lua5.3 lua5.2 lua5.1 luajit luac luac5.4 luac5.3; do command -v $b; done
+  ls /usr/bin/lua* /usr/local/bin/lua*          -> no output
+  lua5.4 -v                                     -> "command not found"
+
+Therefore `lua5.4 -e "assert(loadfile(...))"` and `luac -p` could NOT be run.
+A careful MANUAL SYNTAX REVIEW was performed instead (see below).
+
+api_globals.lua load check: also could not be executed (no interpreter).
+Manual review of api_globals.lua: all declarations are valid Lua 5.4 syntax
+(---@meta / ---@diagnostic comments, function ... end stubs, grsim table
+literal with trailing comma). It loads cleanly by inspection. NOT modified.
+
+--------------------------------------------------------------------
+2. MANUAL SYNTAX REVIEW (velocity_step_test.lua, 80 lines)
+--------------------------------------------------------------------
+Line-by-line structural audit:
+  L18-23  local declarations with literals (number, string, boolean)  -> valid
+  L27-29  local frame_count=0, target_theta=nil, done=false           -> valid
+  L36-41  local function wrap(a): local pi; two single-statement while
+          loops (`while a > pi do a = a - 2 * pi end`); return a; end  -> valid
+  L45     function process()  (global, same style as characterize.lua) -> valid
+  L47-56  if target_theta == nil then ... end  (nested if/else)        -> balanced
+  L59-61  if done then return end                                      -> valid
+  L63-79  if frame_count < DURATION_FRAMES then ... else ... end
+          nested if/elseif/else with error("...\"vx\"...") escaped
+          quotes; string.concat of number via `..` (valid in Lua 5.4)  -> balanced
+- All block openers (function/if/while) have matching closers; no
+  unterminated strings; no stray tokens; no use of get_time() (removed).
+- Idempotent tail: after done=true the function returns immediately on
+  every subsequent process() call (L59-61) -> no error on repeat calls.
+- Only API used: send_velocity + get_robot_state (verified against
+  api_globals.lua and src/lua_interface/api/control.rs). No motion()/
+  move_to/move_direct/face_to.
+
+VERDICT: syntactically valid Lua 5.4. Recommend a runtime smoke test in
+the engine once a Lua interpreter/engine is available.
+
+--------------------------------------------------------------------
+3. DIFF SUMMARY (original 30 lines -> new 80 lines)
+--------------------------------------------------------------------
+Original bug fixed: send_velocity(ROBOT_ID,TEAM,-1.0,0.0,target_theta)
+was actually -1.0 on vx AND -1.0 on vy (diagonal motion) per task
+context; also used non-existent get_time() API.
+
+Changes:
+  + CONFIG block: ROBOT_ID=0, TEAM=0, AXIS="vx", AMP=1.0,
+    DURATION_FRAMES=60, THETA_HOLD=true
+  + local function wrap(a) -> wraps angle into [-pi,pi] (protocol clamps
+    theta to +/-3.13 rad; target must be wrapped)
+  + State machine in process():
+      * first call: rs=get_robot_state(ROBOT_ID,TEAM);
+        target_theta=wrap(rs.orientation) when THETA_HOLD, else 0.0
+      * while frame_count < DURATION_FRAMES:
+          AXIS=="vx" -> send_velocity(id,team, AMP, 0.0, target_theta)
+          AXIS=="vy" -> send_velocity(id,team, 0.0, AMP, target_theta)
+        (exactly ONE axis nonzero; theta constant across the step)
+      * after duration: send_velocity(id,team, 0.0, 0.0, target_theta)
+        once, set done=true, print completion marker
+  + Per-frame diagnostic: print("[step] " .. AXIS .. " " .. AMP ..
+    " frame=" .. frame_count)
+  + Final marker: print("[test] done " .. AXIS .. " amp=" .. AMP)
+  + Idempotent tail: `if done then return end` -> safe on repeat calls
+  - Removed: get_time()/start_time/elapsed (no Lua time API exists),
+    DURATION (seconds) replaced by DURATION_FRAMES (frame counting)
+
+Full unified diff (104 lines) captured at rewrite time; key hunks:
+  @@ -1,30 +1,80 @@  (full-file rewrite)
+  -local DURATION = 1.0            -> +local DURATION_FRAMES = 60
+  -start_time = get_time()         -> +frame_count counting
+  -send_velocity(...,-1.0,0.0,...) -> +per-axis AMP/0.0 or 0.0/AMP
+
+--------------------------------------------------------------------
+4. VERIFICATION OF CONSTRAINTS
+--------------------------------------------------------------------
+[OK] No simultaneous vx & vy nonzero (per-axis branch, other axis = 0.0)
+[OK] No theta changes mid-step (target_theta captured once on first call)
+[OK] Only send_velocity + get_robot_state used
+[OK] No changes to any file other than velocity_step_test.lua
+[OK] No new files in engine/ (evidence lives in robot/.omo/evidence/)
+[OK] Original backed up to robot/.omo/backups/velocity_step_test.lua.orig
+     (verified byte-identical via diff before rewrite)

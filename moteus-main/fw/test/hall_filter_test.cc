@@ -1,0 +1,423 @@
+// Copyright 2025 mjbots Robotic Systems, LLC.  info@mjbots.com
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "fw/motor_position.h"
+
+#include <cmath>
+#include <fstream>
+#include <sstream>
+#include <vector>
+
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+
+#include "mjlib/micro/test/persistent_config_fixture.h"
+
+#include "mjlib/base/clipp_archive.h"
+#include "mjlib/base/clipp.h"
+#include "mjlib/base/fail.h"
+#include "mjlib/base/visitor.h"
+
+using namespace moteus;
+
+namespace {
+struct Options {
+  std::string input;
+  std::string output;
+  double pll_filter_hz = 40.0;
+  bool no_commutation = false;
+
+  template <typename Archive>
+  void Serialize(Archive* a) {
+    a->Visit(MJ_NVP(input));
+    a->Visit(MJ_NVP(output));
+    a->Visit(MJ_NVP(pll_filter_hz));
+    a->Visit(MJ_NVP(no_commutation));
+  }
+};
+
+constexpr int kRequiredHeaders = 5;
+
+std::vector<int> ParseDebugStream(const std::string& str) {
+  std::vector<int> result;
+  size_t pos = 0;
+  while (pos + 3 < str.size()) {
+    // Skip until we see N headers in a row that are appropriately
+    // spaced.
+    while (true) {
+      const bool appropriately_spaced = [&]() {
+        for (int i = 0; i < kRequiredHeaders &&
+                 (pos + i * 3 < str.size()); i++) {
+          if (static_cast<uint8_t>(str[pos + i * 3]) != 0x5a) {
+            return false;
+          }
+        }
+        return true;
+      }();
+      if (!appropriately_spaced) {
+        pos++;
+      } else {
+        break;
+      }
+    }
+
+    result.push_back(*reinterpret_cast<const uint16_t*>(&str[pos + 1]));
+    pos += 3;
+  }
+
+  return result;
+}
+
+double wrap_encoder_delta(double i) {
+  if (i > 45) { return i - 90; }
+  if (i < -45) { return i + 90; }
+  return i;
+}
+
+// Maps a 3-bit hall pin state (one bit per line) to the moteus sector
+// count 0-5.  The all-low and all-high codes are invalid and map to 0.
+constexpr uint8_t kRawToSector[8] = {
+  0,  // 0b000 invalid
+  0,  // 0b001 => 0
+  2,  // 0b010 => 2
+  1,  // 0b011 => 1
+  4,  // 0b100 => 4
+  5,  // 0b101 => 5
+  3,  // 0b110 => 3
+  0,  // 0b111 invalid
+};
+
+struct Data {
+  double time = 0.0;
+  uint32_t raw_value = 0;
+  uint32_t hall_count = 0;
+  float compensated_value = 0.0f;
+  float filtered_value = 0.0f;
+  float velocity = 0.0;
+  int slow_count = 0;
+
+  float truth_value = 0.0f;
+  float truth_velocity = 0.0f;
+};
+
+struct Application {
+  mjlib::micro::test::PersistentConfigFixture pcf;
+  mjlib::micro::TelemetryManager telemetry_manager{
+    &pcf.pool, &pcf.command_manager, &pcf.write_stream, pcf.output_buffer};
+  aux::AuxStatus aux1_status;
+  aux::AuxStatus aux2_status;
+  aux::AuxConfig aux1_config;
+  aux::AuxConfig aux2_config;
+
+  MotorPosition dut{&pcf.persistent_config, &telemetry_manager,
+                    &aux1_status, &aux2_status,
+                    &aux1_config, &aux2_config};
+
+  Options options;
+
+  static constexpr float kDt = 1.0f / 30000.0f;
+
+  Application(int argc, char** argv) {
+    auto group = mjlib::base::ClippArchive().Accept(&options).group();
+    mjlib::base::ClippParse(argc, argv, group);
+
+    dut.SetRate(kDt);
+
+    if (options.no_commutation) {
+      dut.config()->commutation_source = 1;
+    }
+
+    dut.motor()->poles = 30;
+
+    pcf.persistent_config.Load();
+  }
+
+  void Run() {
+    std::ifstream inf(options.input);
+    if (!inf.is_open()) {
+      throw std::runtime_error(
+          fmt::format("Could not open input: {}", options.input));
+    }
+
+    std::shared_ptr<std::ofstream> out;
+    if (!options.output.empty()) {
+      out = std::make_shared<std::ofstream>(options.output);
+    }
+
+    // Read the entire raw input into memory.
+    std::stringstream istr;
+    istr << inf.rdbuf();
+
+    // The input is a raw dump from the debug port, with
+    // `servo.emit_debug=1<<11=2048` in order get the raw value from
+    // position source 0.
+    std::vector<int> raw_encoder = ParseDebugStream(istr.str());
+
+    dut.config()->sources[0].type = MotorPosition::SourceConfig::kHall;
+    dut.config()->sources[0].pll_filter_hz = options.pll_filter_hz;
+
+    pcf.persistent_config.Load();
+    aux1_status.hall.active = true;
+    double t = 0.0;
+
+    std::vector<Data> data_;
+
+    for (size_t i = 0; i < raw_encoder.size(); i++) {
+      // Attempt to determine the ground truth position and velocity
+      // for this point.
+      const auto raw_value = raw_encoder[i];
+      const auto old = aux1_status.hall.count;
+
+      aux1_status.hall.count = kRawToSector[raw_value & 0x7];
+
+      if (aux1_status.hall.count != old) {
+        aux1_status.hall.nonce += 1;
+      }
+
+      dut.ISR_Update();
+      const auto status = dut.status();
+
+      Data d;
+      d.time = t;
+      d.raw_value = raw_value;
+      d.hall_count = aux1_status.hall.count;
+      d.compensated_value = status.sources[0].compensated_value;
+      d.filtered_value = status.sources[0].filtered_value;
+      // The reported velocity is the raw PLL integral minus the online
+      // DC bias estimate (matching what the device exposes).
+      d.velocity = status.sources[0].integral -
+                   status.sources[0].hall_bias_est;
+      d.slow_count = status.sources[0].slow_count;
+
+      data_.push_back(d);
+
+      t += kDt;
+    }
+
+    // Estimator-independent ground truth, reconstructed purely from the
+    // recorded raw hall pin state (data_[i].raw_value).  The firmware's
+    // compensated_value is produced by the position source itself, so
+    // building the oracle from it would let the estimator under test
+    // partly define its own ground truth; the raw pin state does not.
+    //
+    // Position and velocity are derived from the FALLING edges only.
+    // Open-collector hall outputs have a sharp, well defined falling
+    // edge but a pull-up/cable-capacitance limited rising edge that
+    // registers late.  A per-sector oracle (one count per edge) would
+    // inherit that rise/fall asymmetry as an alternating per-sector
+    // velocity bias -- the very artifact a good estimator must reject
+    // -- and so would reward the bias.  Bracketing each sample between
+    // the two surrounding falling edges (two counts apart, i.e. three
+    // reference points per electrical cycle) is insensitive to the
+    // rising-edge delay while staying local enough to follow the rapid
+    // speed changes in these traces.
+    std::vector<double> truth_count(data_.size(), 0.0);
+    std::vector<size_t> falls;  // sample indices of falling edges
+    {
+      int prev_sector = kRawToSector[data_[0].raw_value & 0x7];
+      // Seed the accumulator the way the firmware seeds offset_value
+      // on its first hall sample: as the signed step from an assumed
+      // previous count of zero.  Seeding with the raw sector instead
+      // would leave the reconstruction offset from the firmware's
+      // (electrical-cycle-ambiguous) absolute frame by a multiple of
+      // six counts, corrupting the position error.
+      double accum = ((prev_sector + 9) % 6) - 3;
+      truth_count[0] = accum;
+      for (size_t i = 1; i < data_.size(); i++) {
+        const uint32_t prev_raw = data_[i - 1].raw_value & 0x7;
+        const uint32_t cur_raw = data_[i].raw_value & 0x7;
+        const int sector = kRawToSector[cur_raw];
+        // Signed count step resolved modulo six into [-3, 2]; the
+        // same convention the firmware uses for its hall delta.  At
+        // these sample rates a real step is only -1, 0 or +1.
+        const int step = ((sector - prev_sector + 9) % 6) - 3;
+        accum += step;
+        truth_count[i] = accum;
+        prev_sector = sector;
+
+        // A single hall line transitioning high -> low is a falling
+        // edge.
+        const uint32_t changed = prev_raw ^ cur_raw;
+        if (changed != 0 && (changed & (changed - 1)) == 0 &&
+            (prev_raw & changed) != 0) {
+          falls.push_back(i);
+        }
+      }
+    }
+
+    auto wrap_modulo = [](double v) {
+      v = std::fmod(v, 90.0);
+      if (v < 0.0) { v += 90.0; }
+      return v;
+    };
+
+    auto find_ground_truth = [&](size_t i) -> std::pair<double, double> {
+      if (falls.size() < 2 || i < falls.front() || i >= falls.back()) {
+        // No surrounding pair of falling edges: the best a-priori
+        // guess is the mid-point of the current count cell, at rest.
+        // This matches the firmware's mid-sector commutation
+        // interpretation.
+        return std::make_pair(wrap_modulo(truth_count[i] + 0.5), 0.0);
+      }
+
+      // Locate the falling-edge bracket [falls[lo], falls[lo+1])
+      // containing sample i.
+      size_t lo = 0;
+      size_t hi = falls.size() - 1;
+      while (hi - lo > 1) {
+        const size_t mid = (lo + hi) / 2;
+        if (falls[mid] <= i) { lo = mid; } else { hi = mid; }
+      }
+
+      const double u0 = truth_count[falls[lo]];
+      const double u1 = truth_count[falls[lo + 1]];
+      const double span = u1 - u0;  // +2, -2, or 0 (already unwrapped)
+
+      if (span == 0.0) {
+        // The rotor returned to the same falling-edge boundary: it
+        // dithered around it rather than advancing through.
+        return std::make_pair(wrap_modulo(u0), 0.0);
+      }
+
+      const double fraction =
+          static_cast<double>(i - falls[lo]) /
+          static_cast<double>(falls[lo + 1] - falls[lo]);
+      const double velocity =
+          span / ((1.0 / 30000.0) *
+                  static_cast<double>(falls[lo + 1] - falls[lo]));
+      return std::make_pair(wrap_modulo(u0 + fraction * span), velocity);
+    };
+
+    double position_metric = 0.0;
+    double velocity_metric = 0.0;
+
+    double max_position_error = 0.0;
+    double max_position_error_time = 0.0;
+    double max_velocity_error = 0.0;
+    double max_velocity_error_time = 0.0;
+
+    for (size_t i = 0; i < data_.size(); i++) {
+      const auto [pos, vel] = find_ground_truth(i);
+
+      data_[i].truth_value = pos;
+      data_[i].truth_velocity = vel;
+
+      const double position_error = wrap_encoder_delta(data_[i].truth_value - data_[i].filtered_value);
+      const double velocity_error = data_[i].truth_velocity - data_[i].velocity;
+
+      const double this_position_metric = std::pow(position_error, 2.0);
+      position_metric += this_position_metric;
+
+      const double this_velocity_metric = std::pow(velocity_error, 2.0);
+      velocity_metric += this_velocity_metric;
+
+      const auto abs_position_error = std::abs(position_error);
+      if (abs_position_error > max_position_error) {
+        max_position_error = abs_position_error;
+        max_position_error_time = i / 30000.0;
+      }
+
+      const auto abs_velocity_error = std::abs(velocity_error);
+      if (abs_velocity_error > max_velocity_error) {
+        max_velocity_error = abs_velocity_error;
+        max_velocity_error_time = i / 30000.0;
+      }
+    }
+
+    // Flat-window velocity bias.  Over non-overlapping windows where
+    // the true speed is nearly constant, the mean velocity error
+    // isolates the steady-state bias -- free of the acceleration lag
+    // and per-edge ripple that the sum-of-squares velocity_metric
+    // above blends together.  This exposes any residual rise/fall bias
+    // left by the two-edge de-biasing.  Reported as a signed
+    // percentage of the true speed (positive => the estimate
+    // overstates the magnitude); the worst window wins.
+    double max_velocity_bias = 0.0;
+    double max_velocity_bias_speed = 0.0;
+    double max_velocity_bias_time = 0.0;
+    {
+      constexpr size_t kWindow = 3000;     // 0.1 s at 30 kHz
+      constexpr double kMinSpeed = 50.0;   // counts/s; skip near-stop
+      constexpr double kFlatness = 0.05;   // max (vmax-vmin)/|mean speed|
+      for (size_t i = 0; i + kWindow <= data_.size(); i += kWindow) {
+        double sum_truth = 0.0;
+        double sum_est = 0.0;
+        double vmin = std::abs(data_[i].truth_velocity);
+        double vmax = vmin;
+        for (size_t j = i; j < i + kWindow; j++) {
+          const double tv = data_[j].truth_velocity;
+          sum_truth += tv;
+          sum_est += data_[j].velocity;
+          const double a = std::abs(tv);
+          if (a < vmin) { vmin = a; }
+          if (a > vmax) { vmax = a; }
+        }
+        const double mean_truth = sum_truth / kWindow;
+        const double abs_mean_truth = std::abs(mean_truth);
+        if (abs_mean_truth < kMinSpeed) { continue; }
+        if ((vmax - vmin) / abs_mean_truth > kFlatness) { continue; }
+        const double bias = (sum_est / kWindow - mean_truth) / mean_truth;
+        if (std::abs(bias) > std::abs(max_velocity_bias)) {
+          max_velocity_bias = bias;
+          max_velocity_bias_speed = abs_mean_truth;
+          max_velocity_bias_time = i / 30000.0;
+        }
+      }
+    }
+
+    if (out) {
+      *out << fmt::format("time,raw,count,compensated,filtered,velocity,"
+                          "truth_pos,truth_vel,slow_count\n");
+
+      for (const auto& d : data_) {
+        *out << fmt::format(
+            "{},{},{},{},{},{},{},{},{}\n",
+            d.time, d.raw_value, d.hall_count,
+            d.compensated_value,
+            d.filtered_value,
+            d.velocity,
+            d.truth_value,
+            d.truth_velocity,
+            d.slow_count);
+      }
+    }
+
+    fmt::print("{{\n");
+    fmt::print("  \"position_metric\": {},\n", position_metric / data_.size());
+    fmt::print("  \"velocity_metric\": {},\n", velocity_metric / data_.size());
+    fmt::print("  \"max_position_error\": {},\n", max_position_error);
+    fmt::print("  \"max_position_error_time\": {},\n", max_position_error_time);
+    fmt::print("  \"max_velocity_error\": {},\n", max_velocity_error);
+    fmt::print("  \"max_velocity_error_time\": {},\n", max_velocity_error_time);
+    fmt::print("  \"max_velocity_bias_pct\": {},\n", 100.0 * max_velocity_bias);
+    fmt::print("  \"max_velocity_bias_speed\": {},\n", max_velocity_bias_speed);
+    fmt::print("  \"max_velocity_bias_time\": {}\n", max_velocity_bias_time);
+    fmt::print("}}\n");
+  }
+};
+};
+
+int main(int argc, char** argv) {
+  Application app(argc, argv);
+
+  try {
+    app.Run();
+    return 0;
+  } catch (std::runtime_error& e) {
+    fmt::print(stderr, "Error: {}\n", e.what());
+    return 1;
+  }
+
+  return 2;
+}

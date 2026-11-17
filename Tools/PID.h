@@ -74,6 +74,9 @@ typedef struct {
 	float integralMax;
 
 	float sampleTime;
+
+	float deadband;
+	float maxSlewRate;
 } PID_Params_t;
 
 /**
@@ -88,6 +91,7 @@ typedef struct {
 
 	float lastMeasure;
 	float integral;
+	float lastOutput;
 
 	PID_Status_t enable;
 } PID_Handler_t;
@@ -123,6 +127,14 @@ void PID_SetController(PID_Handler_t *pid, float Kp, float Ki, float Kd);
  * \param params: Struct with PID configuration parameters
  */
 void PID_SetParams(PID_Handler_t *pid, PID_Params_t params);
+
+/**
+ * \brief Update output limits
+ * \param pid: Struct that store PID operation info
+ * \param outputMax: Maximum output value
+ * \param outputMin: Minimum output value
+ */
+void PID_UpdateLimits(PID_Handler_t *pid, float outputMax, float outputMin);
 
 /**
  * \brief Enable or disable PID

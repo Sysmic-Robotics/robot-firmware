@@ -1,0 +1,55 @@
+T5 — VX PLANT IDENTIFICATION FROM REAL DATA (2026-08-08)
+========================================================
+
+Data: robot/analysis/VxTest.csv
+  - 555 rows, 5.31s, ~60Hz, ENGINE-format single-robot stream
+    (time,x,y,theta,vx,vy,cmd_vx,cmd_vy,cmd_angular,ekf_*,gyro_z,ball_range)
+  - cmd_vx step: 0 -> +1.0 m/s at t=1.60s, held 1.08s, back to 0 at t=2.68s
+  - cmd_vy: always 0. cmd_angular: 0.01 rad/s during step only (negligible)
+
+Response observations (cmd_vx -> ekf_vx):
+  - First meaningful motion ~2.02-2.31s (0.4-0.7s after step)
+  - vx still RISING when command dropped (0.285 @2.68s), peak 0.321 @2.91s
+    -> steady state NEVER reached within the 1.08s window
+  - Asymptote estimate from rise shape: v_ss ~ 0.29-0.32 m/s for 1.0 cmd
+    -> velocity-loop / actuator steady-state gain K ~ 0.23-0.32 (NOT 1.0)
+  - Decay (1.0->0): clean, analyzer latency 88-103ms, settle(5%) ~0.84s
+  - Position confirms motion: x -0.889 -> -0.614 (+0.275m in +x), ekf_vx>0
+
+csv_analyzer.py VxTest.csv --cmd cmd_vx (Step 1, ekf_vx):
+  gain=0.228  ss=0.228  err=0.772  latency=421ms  OS=23.8%  NOISY
+  (rise window truncated by command drop -> K is a LOWER BOUND)
+
+pid_tuner.py --open-loop (cmd_vx -> ekf_vx), FOPDT:
+  K = 0.2279  (lower bound; true ~0.29-0.32)
+  L = 420.8 ms (upper bound: includes vision+EKF+serial; decay-step latency 88-103ms)
+  T = 322.8 ms
+  T/L = 0.8  (<3 -> DELAY-DOMINATED plant)
+
+Tuning rules (K=0.228, L=0.421, T=0.323), firmware units @200Hz:
+  Ziegler-Nichols PI:  Kp=3.030, Ki=2.162   (aggressive)
+  Tyreus-Luyben  PI:  Kp=1.044, Ki=0.745   (conservative)
+  IMC-PI (rec):       Kp=1.1221, Ki=3.4756
+Bracket with true K=0.30: IMC-PI Kp=0.8466, Ki=2.6455
+  -> recommended vx controller range: Kp 0.85-1.12, Ki 2.6-3.5
+  vs current firmware pid_vx = 2.5 / 9.2  (recommendation is LOWER)
+
+INTERPRETATION AMBIGUITY (must confirm with operator):
+  - If pid_vx_enable=0 during capture (T5 runbook open-loop): this is the
+    OPEN-LOOP plant (PWM->friction->vision). K~0.3 = actuator+friction gain;
+    recommended IMC-PI above is the firmware velocity controller.
+  - If pid_vx_enable=1 (loop closed): K~0.3 steady-state on a loop with
+    integral 9.2 is WRONG (integral should kill ss error) -> investigate
+    firmware command scaling / saturation / rate-limiter first.
+  Either way this is the plant the ENGINE-side position loop must handle:
+  L~0.1-0.42s vs the T7 assumption L=95ms -> T7 gains (Kp=4.37) are likely
+  too aggressive for the real plant; recompute position gains after a
+  clean multi-step identification.
+
+RECOMMENDED NEXT TEST (operator, per plan + user suggestion):
+  Multi-step, multi-reference, long-enough windows. Use engine Lua harness
+  (velocity_step_test.lua style) with cmd_vx steps [0.3, -0.3, 0.6, -0.6,
+  1.0, -1.0] (and optionally 1.5), EACH held >= 3.0s (180 frames) so the
+  response settles (ramp 0.67s to 1.0 + ~4T settle). Record engine CSV
+  (this format) + stm32monitor 1kHz simultaneously. Fit per step, average
+  K/L/T, then finalize controller + recompute position loop.

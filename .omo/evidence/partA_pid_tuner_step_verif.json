@@ -1,0 +1,20 @@
+{
+  "file": "fixture_engine_vx_step_verif.csv",
+  "command_column": "Vx_Command",
+  "measurement_column": "Vx_Actual",
+  "mode": "open-loop",
+  "steps": [
+    {
+      "step": 1,
+      "from": 0.0,
+      "to": 1.0,
+      "mode": "open-loop",
+      "fopdt": {
+        "K": 0.9390570000000003,
+        "L": 0.333334,
+        "T": 0.18333299999999997,
+        "ss_meas": 0.9390570000000003
+      }
+    }
+  ]
+}

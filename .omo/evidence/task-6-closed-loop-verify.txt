@@ -1,0 +1,60 @@
+# Task 6 — Closed-Loop Verify (VxMultiTestCL.csv) — ROOT CAUSE: STALE BUILD → INTEGRAL-RESET LIMIT CYCLE
+
+## UPDATE (2026-08-08, stm32monitor log Log_myVariables_2026-08-08_14h05m03s.csv) — DECISIVE
+- Runtime flags CONFIRMED ON: robot_pid_enable=1, pid_vx_enable=1 (logged per sample, 21736 rows @1kHz, t 940.343→958.794).
+- Same 6-step cmd profile; vx_est now REACHES 75-88% of cmd (0.226/0.3, −0.236/−0.3, 0.480/0.6, −0.527/−0.6) with overshoot (vx_est max 0.63) — loop IS acting after user's clean reflash (was inert 0.315×cmd before).
+- BUT: SUSTAINED LIMIT CYCLE, never converges: step +0.3 oscillates 0.16↔0.28 (period ~0.5s, mean ~0.23); step +0.6 oscillates 0.40↔0.56 (mean ~0.48).
+- ROOT CAUSE: drive_task.c:283 `if (fabsf(vx_cmd - vx_meas) < 0.01f) pid_vx.integral = 0.0f;` (and :294 for vy) — integral wiped the moment the robot approaches setpoint (<0.01 m/s), collapsing output; loop rebuilds → overshoots → repeats. Integral is the only component holding steady state at nonzero refs.
+- SIMULATION (/tmp/sim_reset.py, plant K=0.315/L=0.13/T=0.31, PID 200Hz Kp=2.5/Ki=8): WITH reset → mean 0.241, swing 0.143..0.294 (matches real 0.16..0.28); WITHOUT reset → 0.300 clean convergence.
+- FIX (drive_task.c:283 + :294): `if (fabsf(vx_cmd) < 0.01f && fabsf(vx_meas) < 0.01f) pid_vx.integral = 0.0f;` — preserves idle-noise guard, never wipes nonzero-setpoint integral.
+- Next: user applies fix, reflashes, reruns velocity_multistep_test.lua; verify ekf_vx tracks 0.3/0.6/1.0. T5 VY plant ID still pending (needs VyTest.csv).
+
+
+## Data
+- robot/analysis/VxMultiTestCL.csv: 6 steps +0.3/-0.3/+0.6/-0.6/+1.0/-1.0, 3.19s holds, t 0.029→28.12s.
+- User flashed pid_vx Kp=2.5 Ki=8.0 per Task 5 recommendation.
+
+## Finding 1: CSV columns
+- `ekf_*` columns = ALWAYS firmware telemetry (gui/mod.rs:645 + :667 write ekf_vx: tel.vx_est in both branches). NOT vision.
+- `x/vx` columns mix branch1 (target) and branch2 (vision last_vision_chart), duplicate timestamps, two interleaved x series (Δ~0.017).
+
+## Finding 2: encoder == vision == 0.315×cmd (NO discrepancy)
+Per-step (CL): Δx_vis ≈ ΔekfX (0.590/0.590, 1.854/1.846), vx_ss ≈ ekf_ss ratio 1.02.
+Profile step5 (cmd=1.0): vx (vision) ramps 0→0.363 in ~1.0s, settles 0.31-0.33; ekf same.
+⇒ vision tracker and firmware encoder agree within 2%. Encoder conversion verified CLEAN
+(robot/Tools/encoder.c:36 speed = diff/(8192·sampleTime)·2π; wrap-guard >4096 counts; >200 rad/s guard).
+Robot genuinely moves at 0.315×cmd per BOTH independent systems.
+
+## Finding 3: robot PID (pid_vx 2.5/8.0) NOT acting
+CL steady state ≡ OL steady state (0.315×cmd both). With Ki=8, output headroom ±10.5, the loop would drive ekf_vx → cmd. It stays 0.315 ⇒ loop not affecting wheels.
+
+## Finding 4: wheel drive behaves OPEN-LOOP (flat K)
+K flat 0.31-0.34 across cmd 0.3/0.6/1.0 (no amplitude dependence, no offset) ⇒ voltage ∝ cmd exactly.
+Rules out: ff-only (const voltage), disabled-PID passthrough (out=refSpeed+300: offset breaks flatness ~27× at small cmd), saturated integral (const offset).
+Consistent ONLY with: voltage ∝ refSpeed (open-loop-like drive). Wheels spin 11.65 rad/s @ cmd=1.0 (111 rpm).
+
+## Finding 5: SOURCE is correct — flashed binary is STALE (smoking gun)
+Source (verified line-by-line):
+- wheel_pid_params[i] = {Kp=50, Ki=5, Kd=0, outMax=4095, outMin=-4095, intMax=4095, sampleTime=0.001} (system_globals.c:95-100) — enabled via PID_Init(PID_STATUS_ENABLE) (drive_task.c).
+- With intMax=4095/outMax=4095 @1kHz, cmd=1.0 → wheel would push to ~max DAC chasing 36.98 rad/s, NOT idle at 111 rpm.
+- pid_vx Kp=2.5/Ki=8 (drive_task.c:108-109), robot_pid_enable=1 (:126, system_globals.c:37), pid_vx_enable=1 (:42), pid_vy_enable=0 (:43).
+- Encoder conversion, kinematics (WHEEL_GEAR_RATIO=1.0, WHEEL_RADIO=0.02704, SPEED_CNT_RATIO=36.98), radio decode (v_vel=10-bit/100) — all clean.
+- docs/characterization-guide.md says 25/44 — STALE (contradicts system_globals.c:95-100 50/5).
+
+## CONCLUSION
+The robot's flashed binary does NOT match current source. Every code path verified correct;
+behavior (open-loop wheels + inert robot PID) is only explainable by an old build or
+runtime-modified params (stm32monitor write) on the robot. No other consistent explanation exists
+(encoder counts are physical; vision independently agrees).
+
+## ACTION (user, on robot)
+1. stm32monitor read robot_pid_enable / pid_vx_enable / wheel_pid_params[i].Kp/.Ki (motors 0-3).
+2. Re-flash a CLEAN build of the current workspace (confirm robot_pid_enable=1, pid_vx_enable=1,
+   pid_vy_enable=0, wheel_pid_params 50/5/0.001 at runtime).
+3. Rerun velocity_multistep_test.lua (closed loop); expect ekf_vx → cmd (0.3/0.6/1.0).
+4. Optional physical check: +1.0 step 3.2s ≈ 3m tape measure.
+
+## Still open (post-reflash)
+- T5 VY plant ID (needs VyTest.csv).
+- Vision position-vs-velocity inconsistency (Δx 1.81m vs ∫vx≈0.84m over step5) — position may have separate scale path; recheck after reflash.
+- RADIO_TIMEOUT_MS value (watchdog re-enable logic verified, value not critical).

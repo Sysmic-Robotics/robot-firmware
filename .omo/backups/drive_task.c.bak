@@ -1,0 +1,361 @@
+#include "system_globals.h"
+#include "drive_task.h"
+#include "motor.h"
+#include "odometry.h"
+#include "MAX581x.h"
+#include "ekf.h"
+#include "lowpass_iir.h"
+#include <math.h>
+#include "board.h"
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#ifndef WHEEL_MAX_SPEED_RAD
+#define WHEEL_MAX_SPEED_RAD (M_PI * 40.0f)
+#endif
+#ifndef PID_SAMPLE_TIME
+#define PID_SAMPLE_TIME 1
+#endif
+
+#define ROBOT_PID_SAMPLE_TIME 0.005f  // robot-level loop at 200 Hz
+
+void DriveFunction(void *argument)
+{
+    // Init robot_id
+    robot_id = Board_GetID();
+
+    // Init wheels motors DAC: 2.0[V] ref
+    MAX581x_Handler_t driveDAC;
+    MAX581x_Init(&driveDAC, &hi2c1, MAX581x_REF_20);
+    MAX581x_Code(&driveDAC, MAX581x_OUTPUT_A, 0.0);
+    MAX581x_Code(&driveDAC, MAX581x_OUTPUT_B, 0.0);
+    MAX581x_Code(&driveDAC, MAX581x_OUTPUT_C, 0.0);
+    MAX581x_Code(&driveDAC, MAX581x_OUTPUT_D, 0.0);
+
+    // Init dribbler motor DAC: 2.0[V] ref
+    MAX581x_Handler_t dribblerDAC;
+    MAX581x_Init(&dribblerDAC, &hi2c2, MAX581x_REF_20);
+    MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, 0.0);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_7, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_6, GPIO_PIN_SET);
+
+    // Config motors GPIO and TIM
+    // Motor 1
+    motor[0].enablePin.GPIOx = GPIOA;
+    motor[0].enablePin.GPIO_Pin = GPIO_PIN_10;
+    motor[0].dirPin.GPIOx = GPIOA;
+    motor[0].dirPin.GPIO_Pin = GPIO_PIN_9;
+    motor[0].brakePin.GPIOx = GPIOA;
+    motor[0].brakePin.GPIO_Pin = GPIO_PIN_8;
+    motor[0].encoder.count = &TIM3->CNT;
+    motor[0].encoder.lastRaw = (uint16_t)TIM3->CNT;
+    motor[0].encoder.enable = ENCODER_STATUS_ENABLE;
+    TIM3->CR1 = TIM_CR1_CEN;
+
+    // Motor 2
+    motor[1].enablePin.GPIOx = GPIOC;
+    motor[1].enablePin.GPIO_Pin = GPIO_PIN_11;
+    motor[1].dirPin.GPIOx = GPIOC;
+    motor[1].dirPin.GPIO_Pin = GPIO_PIN_12;
+    motor[1].brakePin.GPIOx = GPIOD;
+    motor[1].brakePin.GPIO_Pin = GPIO_PIN_0;
+    motor[1].encoder.count = &TIM8->CNT;
+    motor[1].encoder.lastRaw = (uint16_t)TIM8->CNT;
+    motor[1].encoder.enable = ENCODER_STATUS_ENABLE;
+    TIM8->CR1 = TIM_CR1_CEN;
+
+    // Motor 3
+    motor[2].enablePin.GPIOx = GPIOK;
+    motor[2].enablePin.GPIO_Pin = GPIO_PIN_7;
+    motor[2].dirPin.GPIOx = GPIOG;
+    motor[2].dirPin.GPIO_Pin = GPIO_PIN_15;
+    motor[2].brakePin.GPIOx = GPIOK;
+    motor[2].brakePin.GPIO_Pin = GPIO_PIN_6;
+    motor[2].encoder.count = &TIM2->CNT;
+    motor[2].encoder.lastRaw = (uint16_t)TIM2->CNT;
+    motor[2].encoder.enable = ENCODER_STATUS_ENABLE;
+    TIM2->CR1 = TIM_CR1_CEN;
+
+    // Motor 4
+    motor[3].enablePin.GPIOx = GPIOF;
+    motor[3].enablePin.GPIO_Pin = GPIO_PIN_5;
+    motor[3].dirPin.GPIOx = GPIOF;
+    motor[3].dirPin.GPIO_Pin = GPIO_PIN_3;
+    motor[3].brakePin.GPIOx = GPIOF;
+    motor[3].brakePin.GPIO_Pin = GPIO_PIN_4;
+    motor[3].encoder.count = &TIM5->CNT;
+    motor[3].encoder.lastRaw = (uint16_t)TIM5->CNT;
+    motor[3].encoder.enable = ENCODER_STATUS_ENABLE;
+    TIM5->CR1 = TIM_CR1_CEN;
+
+    // Enable motors and disable brake with per-motor PID params
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
+        Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
+        PID_Init(&motor[i].pid, wheel_pid_params[i], PID_STATUS_ENABLE);
+
+        motor[i].ffVoltage = 300.0f;
+        motor[i].speedDeadband = WHEEL_MAX_SPEED_RAD * WHEEL_GEAR_RATIO * 0.005f;
+    }
+
+
+    PID_Params_t robotPidParams;
+    // Config robot-level PIDs (vx, vy, vth)
+
+    robotPidParams.Kp = 2.5f;
+    robotPidParams.Ki = 9.2f;
+    robotPidParams.Kd = 0.0f;
+    robotPidParams.outputMax = 1.5f;
+    robotPidParams.outputMin = -1.5f;
+    robotPidParams.integralMax = 0.5f;
+    robotPidParams.sampleTime = ROBOT_PID_SAMPLE_TIME;
+
+    PID_Init(&pid_vx, robotPidParams, PID_STATUS_DISABLE);
+    PID_Init(&pid_vy, robotPidParams, PID_STATUS_DISABLE);
+
+    robotPidParams.Kp = 0.8f;
+    robotPidParams.Ki = 40.0f;
+    robotPidParams.outputMax = 10.0f;
+    robotPidParams.outputMin = -10.0f;
+    robotPidParams.integralMax = 10.0f;
+    PID_Init(&pid_vth, robotPidParams, PID_STATUS_ENABLE);
+
+    robot_pid_enable = 1;
+
+    // ── Init IIR filters for encoder noise ──
+    for (uint8_t i = 0; i < 4; i++)
+        LowPassFilter_Init(&motor[i].lpFilt, 0.15f);
+
+    /* EKF init deferred to first cycle */
+
+    // ── Init PID for theta (position control) ──
+    {
+        PID_Params_t thetaPidParams;
+        thetaPidParams.Kp = 2.5f;
+        thetaPidParams.Ki = 0.0f;
+        thetaPidParams.Kd = 0.0f;
+        thetaPidParams.outputMax = 10.0f;
+        thetaPidParams.outputMin = -10.0f;
+        thetaPidParams.integralMax = 0.0f;
+        thetaPidParams.sampleTime = ROBOT_PID_SAMPLE_TIME;
+        PID_Init(&pid_theta, thetaPidParams, PID_STATUS_ENABLE);
+    }
+
+    // ── Rate limiter state (function scope so timeout handler can reset) ──
+    static float vx_cmd_limited = 0.0f;
+    static float vy_cmd_limited = 0.0f;
+    static float vth_cmd_limited = 0.0f;
+
+    // ── Start TIM7 (1 kHz control loop timebase) ──
+    HAL_TIM_Base_Start_IT(&htim7);
+
+    // Infinite loop
+    for(;;)
+    {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+        // ── Radio watchdog: coast motors on timeout (skip in test mode) ──
+        uint32_t radio_now = HAL_GetTick();
+        if (!test_enable && radio_ever_received && radio_now - radio_last_rx_tick > RADIO_TIMEOUT_MS) {
+            uint8_t any_enabled = 0;
+            for (uint8_t i = 0; i < 4; i++) {
+                if (motor[i].enable == MOTOR_STATUS_ENABLE) any_enabled = 1;
+            }
+            if (any_enabled) {
+                for (uint8_t i = 0; i < 4; i++) {
+                    Motor_Enable(&motor[i], MOTOR_STATUS_DISABLE);
+                }
+                robot_pid_enable = 0;
+                v_vel[0] = 0.0f;
+                v_vel[1] = 0.0f;
+                v_vel[2] = 0.0f;
+                vx_cmd_limited = 0.0f;
+                vy_cmd_limited = 0.0f;
+                vth_cmd_limited = 0.0f;
+            }
+        } else {
+            uint8_t all_disabled = 1;
+            for (uint8_t i = 0; i < 4; i++) {
+                if (motor[i].enable == MOTOR_STATUS_ENABLE) all_disabled = 0;
+            }
+            if (all_disabled) {
+                for (uint8_t i = 0; i < 4; i++) {
+                    Motor_Enable(&motor[i], MOTOR_STATUS_ENABLE);
+                }
+                robot_pid_enable = 1;
+            }
+        }
+
+        // ── Wheel-level: encoder + PID + GPIO + DAC (bloqueante) ──
+        float wheel_speeds_rads[4];
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            if (test_enable)
+            {
+                if (i != test_motor)
+                {
+                    Motor_Enable(&motor[i], MOTOR_STATUS_DISABLE);
+                    Motor_SetBrake(&motor[i], MOTOR_BRAKE_ENABLE);
+                    motor[i].measSpeed = 0.0f;
+                    wheel_speeds_rads[i] = 0.0f;
+                }
+                else
+                {
+                    Motor_Enable(&motor[i], MOTOR_STATUS_ENABLE);
+                    Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
+                    if (test_voltage >= 0.0f)
+                        HAL_GPIO_WritePin(motor[i].dirPin.GPIOx, motor[i].dirPin.GPIO_Pin, GPIO_PIN_SET);
+                    else
+                        HAL_GPIO_WritePin(motor[i].dirPin.GPIOx, motor[i].dirPin.GPIO_Pin, GPIO_PIN_RESET);
+                    MAX581x_CodeLoad(&driveDAC, i, (uint16_t)(fabsf(test_voltage)));
+                    float rawSpeed = Encoder_Update(&motor[i].encoder, motor[i].pid.params.sampleTime);
+                    motor[i].measSpeed = LowPassFilter_Update(&motor[i].lpFilt, rawSpeed);
+                    wheel_speeds_rads[i] = motor[i].measSpeed / WHEEL_GEAR_RATIO;
+                }
+            }
+            else
+            {
+                Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
+                wheel_speeds_rads[i] = motor[i].measSpeed / WHEEL_GEAR_RATIO;
+            }
+        }
+
+        // ── Dribbler DAC ──
+        MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler_sel]);
+
+        // ── Robot-level control (200 Hz) ──
+        static uint32_t robot_cycle = 0;
+        robot_cycle++;
+        if (robot_cycle >= 5)
+        {
+            robot_cycle = 0;
+
+            if (!kalman_ready) {
+                EKF_Init(&ekf, ROBOT_PID_SAMPLE_TIME);
+                kalman_ready = 1;
+            }
+
+            ForwardKinematics(wheel_speeds_rads, &vx_enc, &vy_enc, &vth_enc);
+
+            EKF_Predict(&ekf, ax_ms2, ay_ms2, gyro_z_rads);
+            EKF_UpdateEncoders(&ekf, vx_enc, vy_enc, vth_enc);
+            EKF_SaveHistory(&ekf);
+
+            vx_est  = ekf.x[4];
+            vy_est  = ekf.x[5];
+            vth_est = ekf.x[6];
+            theta_est = atan2f(ekf.x[2], ekf.x[3]);
+
+            float vx_cmd = v_vel[0];
+            float vy_cmd = v_vel[1];
+            float vth_cmd = v_vel[2];
+
+            // ── Rate limiters for linear axes (internal ramps) ──
+            {
+                float max_lin_step = robot_max_linear_acc * ROBOT_PID_SAMPLE_TIME;
+
+                float vx_delta = vx_cmd - vx_cmd_limited;
+                if (vx_delta > max_lin_step) vx_delta = max_lin_step;
+                else if (vx_delta < -max_lin_step) vx_delta = -max_lin_step;
+                vx_cmd_limited += vx_delta;
+                vx_cmd = vx_cmd_limited;
+
+                float vy_delta = vy_cmd - vy_cmd_limited;
+                if (vy_delta > max_lin_step) vy_delta = max_lin_step;
+                else if (vy_delta < -max_lin_step) vy_delta = -max_lin_step;
+                vy_cmd_limited += vy_delta;
+                vy_cmd = vy_cmd_limited;
+            }
+
+            if (robot_pid_enable)
+            {
+                float vx_meas = vx_est;
+                float vy_meas = vy_est;
+
+                if (fabsf(vx_cmd - vx_meas) < 0.01f) pid_vx.integral = 0.0f;
+                if (fabsf(vy_cmd - vy_meas) < 0.01f) pid_vy.integral = 0.0f;
+
+                PID_CloseLoop(&pid_vx, vx_cmd, vx_meas);
+                PID_CloseLoop(&pid_vy, vy_cmd, vy_meas);
+
+                vx_cmd = pid_vx.output;
+                vy_cmd = pid_vy.output;
+
+                // ── Theta PID: position control (theta_target → omega) ──
+                PID_CloseLoop(&pid_theta, vth_cmd, theta_est);
+                vth_cmd = pid_theta.output;
+
+                float vth_delta = vth_cmd - vth_cmd_limited;
+                float max_vth_step = robot_max_angular_acc * ROBOT_PID_SAMPLE_TIME;
+                if (vth_delta > max_vth_step) vth_delta = max_vth_step;
+                else if (vth_delta < -max_vth_step) vth_delta = -max_vth_step;
+                vth_cmd_limited += vth_delta;
+                vth_cmd = vth_cmd_limited;
+            }
+
+            for (uint8_t i = 0; i < 4; i++)
+            {
+                speed[i] = kinematic[i][0] * vx_cmd +
+                           kinematic[i][1] * vy_cmd +
+                           kinematic[i][2] * vth_cmd;
+            }
+        }
+
+        // ── Kicker ──
+        if(kick_sel && kick_flag == KICKER_CHARGED
+           /* && ball_possession */) {  // TODO: habilitar detector de pelota
+            osMutexAcquire(kickFlagHandle, osWaitForever);
+            kick_flag = KICKER_START;
+            osMutexRelease(kickFlagHandle);
+            uint32_t _m0 = 0;
+            osMessageQueuePut(kickQueueHandle, &_m0, 0U, 0U);
+            kick_sel = 0;  // Reset para evitar re-kick automático
+        }
+
+        uint32_t _m1 = 0;
+        osMessageQueuePut(nrf24CheckHandle, &_m1, 0U, 0U);
+    }
+}
+
+void processRadioCommand(uint8_t *buffer)
+{
+	/* Last velocities */
+	float prv_Vx = v_vel[0], prv_Vy = v_vel[1];
+
+	/* Decode vx, vy from radio packet (10-bit signed / 100) */
+	v_vel[0] = (buffer[1] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F))/100.0f  : (float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F))/100.0f ;
+	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f ;
+
+	/* Decode theta from radio packet (10-bit signed, scale 163 → radians) */
+	{
+	    int16_t theta_raw = (buffer[3] & 0x80)
+	        ? -(int16_t)(((uint16_t)(buffer[4] & 0x0F) << 7) | (uint16_t)(buffer[3] & 0x7F))
+	        :  (int16_t)(((uint16_t)(buffer[4] & 0x0F) << 7) | (uint16_t)(buffer[3] & 0x7F));
+	    theta_meas = (float)theta_raw / 163.0f;
+	    v_vel[2] = theta_meas;  // theta_target for PID position control
+	}
+
+	/* Limit linear velocity magnitude */
+	float vel_mag = sqrtf(v_vel[0]*v_vel[0] + v_vel[1]*v_vel[1]);
+	if (vel_mag > ROBOT_MAX_LINEAR_VEL)
+	{
+		float scale = ROBOT_MAX_LINEAR_VEL / vel_mag;
+		v_vel[0] *= scale;
+		v_vel[1] *= scale;
+	}
+
+	/* Limit linear acceleration */
+	float Ax = v_vel[0] - prv_Vx, Ay = v_vel[1] - prv_Vy;
+	float acc_mag = sqrtf(Ax*Ax + Ay*Ay);
+	if (acc_mag > ROBOT_MAX_LINEAR_ACC && acc_mag > 1e-6f)
+	{
+		float scale = ROBOT_MAX_LINEAR_ACC / acc_mag;
+		v_vel[0] = prv_Vx + Ax * scale;
+		v_vel[1] = prv_Vy + Ay * scale;
+	}
+
+	/* speed[] will be computed in DriveFunction loop — do NOT write to velocity here */
+}

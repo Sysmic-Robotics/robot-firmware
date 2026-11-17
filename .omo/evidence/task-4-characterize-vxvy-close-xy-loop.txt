@@ -1,0 +1,131 @@
+TASK-4 EVIDENCE: Open-loop vx/vy characterization runbook + wrapper scripts
+============================================================================
+Date: 2026-08-06
+Task: Wave 1 / T4 — operator runbook + helper shell scripts for open-loop
+      vx/vy velocity characterization (feeds T5 FOPDT fit + retune).
+
+----------------------------------------------------------------------------
+1. FILES CREATED
+----------------------------------------------------------------------------
+[OK] /home/sysmic/Desktop/SysmicProyect/robot/analysis/open_loop_recipe.md
+     Operator runbook, sections in required order:
+       1. Pre-reqs: build+flash via STM32CubeIDE (project robot-firmware.ioc);
+          explicitly states there is NO Makefile and NO arm-none-eabi-gcc on
+          this machine; gate verification command:
+            stm32monitor live pid_vx_enable,pid_vy_enable,pid_vth_enable
+       2. METIS G4 bench check of struct-member write syntax:
+            stm32monitor native write pid_vx.Kp 2.5
+            stm32monitor live pid_vx.Kp
+          documents success path (.Kp), alternative spelling
+          (pid_vx.params.Kp, per drive_task.c:214 `pid.params` layout and
+          guide GUI column), and the fallback path (edit robotPidParams in
+          drive_task.c:108-119 + reflash); includes Kp restore to 0.8.
+       3. Field one-step vx procedure (disable -> verify -> engine GUI record
+          -> stm32monitor record -> Lua step -> stop -> re-enable), exact
+          commands, Lua CONFIG block (AXIS="vx", AMP=+1.0, DURATION_FRAMES=60).
+       4. Step matrix: vx AND vy at +-0.3, +-0.6, +-1.0, +-1.2 m/s (16 runs),
+          ~50-frame rest between runs, file naming convention
+          <kind>_<axis>_<sign>_<amp>.csv (record_vx_p1.0.csv engine /
+          data_openloop_vx_p1.0.csv stm32monitor); DURATION_FRAMES guidance
+          (60/60/60/60/75/75/90/90) so steady state is reached.
+       5. G3 acceptance: reject steps with |dvy|>0.1 m/s (vx runs) or
+          |dvx|>0.1 m/s (vy runs) or |dtheta|>0.05 rad; csv_analyzer check
+          commands; repeat both directions + average.
+       6. FOPDT analysis commands (pid_tuner.py -c v_vel[0] -m vx_enc/vy_enc
+          --open-loop, batch + JSON export) with RAMP CAVEAT:
+          ROBOT_MAX_LINEAR_ACC=1.5 m/s^2 (system_globals.h:15) = 7.5mm/s per
+          5ms; 1.0 m/s step ramps ~0.67s; L/T from this data are UPPER
+          BOUNDS; K valid only if steady state reached; prefer short high-amp
+          steps. Sanity reference: K=0.381, L=95ms, T=245ms (TestescalonVx.csv
+          dry-run). Appendix A command reference.
+[OK] /home/sysmic/Desktop/SysmicProyect/robot/analysis/run_openloop_vx.sh
+     Wrapper: one step per run. Args: AMP ($1, e.g. 1.0 or -0.6), --dry-run
+     (echo-only, operator safety), --help. Sequence: pid_vx_enable=0 ->
+     read-back (timeout 3 live pid_vx_enable,pid_vy_enable,pid_vth_enable ->
+     expect 0,1,1) -> prompt: start engine GUI recording (record_<axis>_<s><amp>.
+     csv) -> background stm32monitor record (vars best-effort, output to
+     /home/sysmic/log/data_openloop_vx_<s><amp>.csv) -> prompt: run Lua step,
+     wait for [test] done -> kill recorder -> prompt: stop engine recording ->
+     pid_vx_enable=1. Safety: trap cleanup restores the gate on EXIT/INT/TERM
+     (idempotent via RESTORED flag). File naming derived from AMP sign.
+[OK] /home/sysmic/Desktop/SysmicProyect/robot/analysis/run_openloop_vy.sh
+     Mirror of vx wrapper: toggles pid_vy_enable, keeps pid_vx_enable + theta-
+     hold ON, record_vy_*/data_openloop_vy_* naming, G3 check messages use
+     |dvx|.
+
+----------------------------------------------------------------------------
+2. bash -n SYNTAX CHECK (run 2026-08-06, /home/sysmic/Desktop/SysmicProyect/robot/analysis)
+----------------------------------------------------------------------------
+$ bash -n run_openloop_vx.sh ; echo "exit=$?"
+exit=0
+$ bash -n run_openloop_vy.sh ; echo "exit=$?"
+exit=0
+
+Both scripts pass bash -n with no output (syntax OK).
+
+----------------------------------------------------------------------------
+3. RUNTIME SMOKE TEST (dry-run only; NO stm32monitor executed — no hardware attached)
+----------------------------------------------------------------------------
+$ printf '\n\n\n' | bash run_openloop_vx.sh --dry-run -1.0 | grep -E '^>>' 
+>> stm32monitor native write pid_vx_enable 0
+>> timeout 3 stm32monitor live pid_vx_enable,pid_vy_enable,pid_vth_enable
+>> STEP 3 (manual): engine Recording panel -> filename 'record_vx_n1.0.csv' -> Start
+>> stm32monitor record --vars time,ax_ms2,v_vel[0],v_vel[1],vx_enc,vx_est,vy_enc,vy_est,theta_est --output /home/sysmic/log/data_openloop_vx_n1.0.csv   (background)
+>>   [dry-run] background recorder would start here; PID + log: /home/sysmic/log/data_openloop_vx_n1.0.csv.rec.log
+>> STEP 5 (manual): engine Lua > Load Script > velocity_step_test.lua
+>>   CONFIG must read:  AXIS="vx"  AMP=-1.0  DURATION_FRAMES=60
+>> kill $REC_PID   (stop the stm32monitor recorder)
+>> STEP 7 (manual): engine Recording panel -> Stop
+>> stm32monitor native write pid_vx_enable 1
+
+No-arg path:
+$ bash run_openloop_vx.sh   -> "ERROR: no step amplitude given (try --help)." + usage
+
+Dry-run verified: full disable->record->run->enable sequence is echoed; negative
+amp yields sign=n and file data_openloop_vx_n1.0.csv; no stm32monitor invocation
+was ever executed (dry-run only prints).
+
+----------------------------------------------------------------------------
+4. GROUND TRUTH USED (evidence sources)
+----------------------------------------------------------------------------
+[OK] analysis/TestescalonVx.csv header: time,ax_ms2,v_vel[0],vx_enc,vx_est
+     -> the CONFIRMED stm32monitor record vars; everything else in the record
+     list (v_vel[1],vy_enc,vy_est,theta_est) is marked VERIFY in the runbook.
+[OK] docs/characterization-guide.md: stm32monitor live/native write/record
+     syntax; Fase 3 matrices (open-loop +-0.3..+-1.2, WAIT=50; closed-loop
+     +-0.5..+-1.5, WAIT=70); pid_vx.Kp vs pid_vx.params.Kp ambiguity.
+[OK] analysis/live_telemetry.py: LOG_DIR = /home/sysmic/log (STM32Monitor CSV
+     output dir; reads the LATEST csv there) -> record --output uses absolute
+     /home/sysmic/log path.
+[OK] engine/engine/lua/velocity_step_test.lua: CONFIG block ROBOT_ID/TEAM/
+     AXIS/AMP/DURATION_FRAMES/THETA_HOLD; [step]/[test] done markers.
+[OK] robot/Core/Src/system_globals.c:42-44: pid_vx_enable/pid_vy_enable/
+     pid_vth_enable = 1 (gates exist in source, NOT yet flashed).
+[OK] robot/Core/Inc/system_globals.h:15: ROBOT_MAX_LINEAR_ACC = 1.5f; enforced
+     in drive_task.c:376-378 (acc-magnitude scaling) -> ramp caveat math.
+[OK] drive_task.c:214 `motor[i].pid.params.sampleTime` -> PID struct uses
+     .params.* nesting (G4 fallback spelling pid_vx.params.Kp).
+[OK] pid_tuner.py --help: -c/--cmd, -m/--meas, --open-loop, -e/--export flags.
+
+----------------------------------------------------------------------------
+5. CONSTRAINT VERIFICATION
+----------------------------------------------------------------------------
+[OK] No stm32monitor executed (no hardware attached) — dry-run smoke only.
+[OK] Only tools used: read, glob, grep, bash (bash -n + ls + dry-run), write.
+[OK] No analysis tool / Lua / engine / firmware source modified (read-only
+     inspection of system_globals.c/h, drive_task.c, live_telemetry.py,
+     pid_tuner.py --help, velocity_step_test.lua).
+[OK] Unsure variable names carry explicit VERIFY markers in the runbook.
+[OK] Three deliverables produced per task spec.
+
+--------------------------------------------------------------------
+ORCHESTRATOR CROSS-CHECK (2026-08-06): run_openloop_vx.sh/vy.sh vs recipe §4
+- BUG FOUND+FIXED: scripts hardcoded "DURATION_FRAMES=60" in the operator
+  instruction echo; recipe matrix requires 75 (@±1.0) and 90 (@±1.2).
+  Fixed: case-mapped |amp| -> DURATION_FRAMES (0.3|0.6->60, 1.0->75, else->90).
+- FIXED: scripts lacked +x (operator would hit Permission denied on ./run_*.sh).
+- VERIFIED: bash -n OK both; dry-run shows AXIS/DURATION_FRAMES correct per amp
+  (vx & vy): 0.3->60, 0.6->60, 1.0->75, 1.2->90, 1.5->90; direct ./ execution OK.
+- All other script/recipe items consistent: file naming <kind>_<axis>_<sign>_<amp>.csv
+  matches matrix; gate toggling (only pid_<axis>_enable=0, read-back 0,1,1, trap-restore);
+  VARS list matches TestescalonVx.csv columns + G4 bench-verify caveat.

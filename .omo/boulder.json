@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "active_work_id": "imp-2026-06-30",
+  "works": {
+    "imp-2026-06-30": {
+      "work_id": "imp-2026-06-30",
+      "active_plan": ".omo/plans/implementation-plan.md",
+      "plan_name": "implementation-plan",
+      "session_ids": ["codex:implementation-plan-exec"],
+      "status": "completed",
+      "worktree_path": null,
+      "elapsed_ms": 600000
+    }
+  }
+}

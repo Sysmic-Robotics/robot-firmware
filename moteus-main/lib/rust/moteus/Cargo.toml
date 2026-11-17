@@ -1,0 +1,64 @@
+[package]
+name = "moteus"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Rust client library for moteus brushless motor controllers"
+license = "Apache-2.0"
+repository = "https://github.com/mjbots/moteus"
+keywords = ["moteus", "robotics", "motor-control", "can-fd"]
+categories = ["science::robotics", "hardware-support"]
+
+[features]
+default = ["serialport"]
+clap = ["dep:clap"]
+serialport = ["dep:serialport"]
+tokio = ["dep:tokio", "dep:tokio-serial"]
+# Exposes the runnable example bodies as a library (the `examples`
+# module) so downstream binaries can reuse them with other transports.
+# Enables everything the examples need.
+examples = ["clap", "tokio", "serialport"]
+
+[dependencies]
+moteus-derive.workspace = true
+moteus-protocol.workspace = true
+
+clap = { version = "4.5", features = ["derive"], optional = true }
+tokio = { version = "1.0", features = ["net", "io-util", "time", "rt", "rt-multi-thread", "macros", "sync"], optional = true }
+serialport = { version = "4", optional = true }
+tokio-serial = { version = "5.4", optional = true }
+
+# The examples are also built by bazel; see lib/rust/BUILD.  Run them
+# with e.g.:
+#   cargo run --features clap,tokio --example simple
+
+[[example]]
+name = "protocol_only"
+
+[[example]]
+name = "discover"
+required-features = ["examples"]
+
+[[example]]
+name = "bandwidth_test"
+required-features = ["examples"]
+
+[[example]]
+name = "diagnostic_protocol"
+required-features = ["examples"]
+
+[[example]]
+name = "gpio"
+required-features = ["examples"]
+
+[[example]]
+name = "move_to"
+required-features = ["examples"]
+
+[[example]]
+name = "multiservo"
+required-features = ["examples"]
+
+[[example]]
+name = "simple"
+required-features = ["examples"]

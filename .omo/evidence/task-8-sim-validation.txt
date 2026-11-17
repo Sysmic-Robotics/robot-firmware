@@ -1,0 +1,64 @@
+SIM PIPELINE + POSITION LOOP VALIDATION (grSim) — 2026-08-06
+============================================================
+Scope: close the T8/T9 "pending field validation" notes for the SIM part; de-risk the
+operator's hardware session by validating the full data pipeline end-to-end.
+
+ENGINE CHANGES (minimal, default behavior unchanged, cargo build exit 0):
+1. ENGINE_AUTORUN=1 env gate in main.rs CLI-arg block: when set, the script passed
+   as argv[1] is auto-resumed after loading (otherwise stays paused, unchanged).
+   Needed because CLI-loaded scripts start paused (lua_interface/mod.rs:111) and
+   resume is GUI-only. Operator may ignore; GUI workflow unaffected.
+2. log(...) Lua binding (lua_interface/mod.rs register_log): print() routes only to
+   the GUI panel; log() also emits to stdout via tracing info!. Used for headless
+   marker output. log_info()/log_error() already had stdout visibility.
+
+PIPELINE VALIDATED (end-to-end, full chain working):
+  ENGINE_AUTORUN=1 engine <script.lua> --(auto-resume)--> Lua process() every frame
+  --> send_velocity/set_position_target binding --> radio.add_motion_command
+  --> prepare_frame --> send_commands --> communicate_grsim (UDP 127.0.0.1:20011)
+  --> grSim physics --> vision multicast 224.5.23.2:10020 (~235 Hz)
+  --> run_vision --> tracker EKF --> world.set_fused_robot_state
+  --> get_robot_state reflects real motion.
+
+Evidence runs (grSim --headless, DISPLAY=:1, engine rebuilt):
+A. sim_smoke2.lua — open-loop vx=0.5: robot moved at measured 0.46-0.48 m/s,
+   straight line, theta held; active=true while vision streamed. PASS.
+B. xy_setpoint_sim.lua — set_position_target (T9 Rust PositionPID, default
+   Kp=4.3745 Ki=1.8227): robot responds, but SUSTAINED LIMIT CYCLE around the
+   setpoint (amplitude ~0.5-1.0 m, velocities to 1.5 m/s, never settles in 30 s)
+   + theta spins up. TWO CAUSES:
+     B1. T7 gains are tuned for the FIRMWARE velocity plant (T2: L=95 ms, T=245 ms).
+         grSim's velocity response is much faster (~near-instant), so the loop is
+         effectively delay-dominated and 4.37/s proportional gain is far above the
+         stable crossover -> oscillation. If the real velocity loop proves faster
+         than the T2 estimate, the operator should reduce Kp first (sim converged
+         with Kp~0.6-scale gains on the fast plant).
+     B2. grSim angular semantics differ from firmware: the 5th arg is vel_angular
+         in rad/s (grSim) but an ABSOLUTE HEADING TARGET in rad (firmware, per
+         protocol). compute_position_target sends theta_target=current heading ->
+         in grSim that is positive feedback (dtheta/dt = theta) -> exponential
+         spin-up. On hardware this correctly holds heading. Position-loop tuning
+         MUST therefore be done on the real robot; grSim position tests must pass
+         5th arg = 0.
+C. xy_pi_lua.lua — T8 Lua position-loop STRUCTURE (rotation R(-theta) + PI +
+   integral anti-windup, 5th arg=0) with Kp=0.6 Ki=0.15: DIAGONAL convergence
+   from (-0.5,-0.5) to (0.5,0.5), decaying oscillation, settled at
+   (0.500,0.500) +/- 5 mm with ~0 velocity and ~0 command by ~7 s, held for the
+   remaining 35 s. Proves: rotation math (body-frame commands from field-frame
+   error) correct end-to-end, PI + anti-windup stable against a fast plant with
+   modest gains.
+
+CONCLUSIONS FOR THE OPERATOR SESSION:
+- Full data chain works headless: grSim + ENGINE_AUTORUN=1 + script + log() markers.
+- Start hardware tuning with T7 defaults (Kp=4.3745, Ki=1.8227). If the closed-loop
+  oscillates (real velocity loop faster than T2 estimate), reduce Kp first toward
+  1.0-2.0, keep Ki proportional (the grSim fast-plant behavior is a worst-case
+  preview of that failure mode).
+- Do NOT judge heading behavior from grSim; 5th-arg semantics differ (B2).
+- Record CSV via GUI Recording panel (logger) during hardware runs; analysis tools
+  in robot/analysis/ are ready (T2-verified).
+
+REMAINING PENDING (operator/hardware, unchanged):
+- T5 open-loop vx/vy runs + fit/retune (firmware plant ID).
+- T6 closed-loop verify + fusion delay/bias quantification.
+- Real-robot validation of set_position_target heading-hold.

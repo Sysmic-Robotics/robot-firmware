@@ -13,29 +13,32 @@
 
 float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 {
-	if(encoderDevice->enable != ENCODER_STATUS_ENABLE)
+	if (encoderDevice->enable != ENCODER_STATUS_ENABLE)
 		return 0;
-	/* Tigers */
-	/*
-	int32_t encPos = (int32_t)*encoderDevice->count;
-	float encPosF = encPos;
-	encPosF /= ENCODER_CPR;
 
-	float speed = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
-	encoderDevice->oldPos = encPosF;
-	if(encoderDevice->minSpeed != 0.0f && fabs(speed) < encoderDevice->minSpeed)
-	{
-		speed = 0.0f;
+	// Evita división por cero o sampleTime irreal
+	if (sampleTime < 1e-6f)
+		return 0;
+
+	uint16_t raw = (uint16_t)*encoderDevice->count;
+	uint16_t udiff = raw - encoderDevice->lastRaw;
+
+	// udiff > 4096 y < 61439 → salto mayor a media revolución
+	// (detecta correctamente incluso cuando udiff wrappeó por 16-bit)
+	if (udiff > 4096 && udiff < 61439) {
+		encoderDevice->lastRaw = raw;
+		return 0;
 	}
-	*/
-	/* TESTING */
-	int16_t encPos = (int16_t)*encoderDevice->count;
-	float encPosF = fabs((float)encPos) < 1.0f ? 0.0f : (float)encPos; //acotacion de filtro
 
-	*encoderDevice->count = 0;
-	float speed = encPosF * 2 * M_PI / (ENCODER_CPR * sampleTime);
+	int16_t diff = (int16_t)udiff;
+	encoderDevice->lastRaw = raw;
 
-	//return encPosF;
+	float speed = (float)diff / (ENCODER_CPR * sampleTime);
+	speed *= 2.0f * (float)M_PI;
+
+	if (fabsf(speed) > 500.0f)
+		speed = 0.0f;
+
 	return speed;
 }
 

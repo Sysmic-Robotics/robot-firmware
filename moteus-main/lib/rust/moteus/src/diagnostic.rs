@@ -1,0 +1,1440 @@
+// Copyright 2026 mjbots Robotic Systems, LLC.  info@mjbots.com
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! Diagnostic stream protocol for moteus controllers.
+//!
+//! The diagnostic stream provides a text-based interface for configuration,
+//! debugging, and telemetry access. This module provides both blocking and
+//! async implementations.
+//!
+//! # Example (Blocking)
+//!
+//! ```no_run
+//! use moteus::BlockingController;
+//! use moteus::diagnostic::DiagnosticStream;
+//!
+//! fn main() -> Result<(), moteus::Error> {
+//!     let mut ctrl = BlockingController::new(1)?;
+//!     let mut stream = DiagnosticStream::new(&mut ctrl);
+//!
+//!     // Stop any telemetry spew and flush pending data
+//!     stream.write_message(b"tel stop")?;
+//!     stream.flush_read()?;
+//!
+//!     // Read a configuration value (single-line response)
+//!     let value = stream.command_oneline(b"conf get servo.pid_position.kp")?;
+//!     println!("kp = {}", String::from_utf8_lossy(&value));
+//!
+//!     // Set a configuration value (waits for "OK")
+//!     stream.command(b"conf set servo.pid_position.kp 4.0")?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! # Example (Async)
+//!
+//! ```ignore
+//! use moteus::AsyncController;
+//! use moteus::diagnostic::AsyncDiagnosticStream;
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), moteus::Error> {
+//!     let mut ctrl = AsyncController::new(1).await?;
+//!     let mut stream = AsyncDiagnosticStream::new(&mut ctrl);
+//!
+//!     stream.write_message(b"tel stop").await?;
+//!     stream.flush_read().await?;
+//!
+//!     let value = stream.command_oneline(b"conf get servo.pid_position.kp").await?;
+//!     Ok(())
+//! }
+//! ```
+
+use crate::command_types::Command;
+use crate::error::{Error, Result};
+use crate::transport::transaction::{FrameFilter, Request};
+use moteus_protocol::diagnostic as proto;
+use moteus_protocol::{CanFdFrame, SERVER_TO_CLIENT, SERVER_TO_CLIENT_FLOW};
+
+/// Default diagnostic channel.
+pub const DEFAULT_CHANNEL: u8 = 1;
+
+/// Maximum data size per diagnostic write frame.
+/// CAN-FD frames are 64 bytes max, minus 3 bytes for header (cmd, channel, len).
+pub const MAX_DIAGNOSTIC_WRITE: usize = 61;
+
+/// Maximum data size per diagnostic read request.
+pub const MAX_DIAGNOSTIC_READ: usize = 61;
+
+/// Result of parsing a diagnostic response.
+#[derive(Debug, Clone)]
+pub struct DiagnosticResponse {
+    /// The CAN ID of the responding device.
+    pub id: u8,
+    /// The data received (may be empty).
+    pub data: Vec<u8>,
+}
+
+/// Creates a frame to write data to the diagnostic stream.
+///
+/// # Arguments
+/// * `dest_id` - Destination CAN ID
+/// * `source_id` - Source CAN ID
+/// * `channel` - Diagnostic channel (usually 1)
+/// * `data` - Data to write (max 61 bytes)
+pub fn make_diagnostic_write_frame(
+    dest_id: u8,
+    source_id: u8,
+    channel: u8,
+    data: &[u8],
+) -> CanFdFrame {
+    assert!(data.len() <= MAX_DIAGNOSTIC_WRITE);
+
+    let mut frame = CanFdFrame::new();
+    frame.arbitration_id =
+        moteus_protocol::calculate_arbitration_id(source_id as i8, dest_id as i8, 0, false);
+    frame.size = proto::write_client_to_server(channel, data, &mut frame.data);
+
+    frame
+}
+
+/// Creates a frame to poll for diagnostic data.
+///
+/// # Arguments
+/// * `dest_id` - Destination CAN ID
+/// * `source_id` - Source CAN ID
+/// * `channel` - Diagnostic channel (usually 1)
+/// * `max_length` - Maximum bytes to read
+pub fn make_diagnostic_read_frame(
+    dest_id: u8,
+    source_id: u8,
+    channel: u8,
+    max_length: u8,
+) -> CanFdFrame {
+    let mut frame = CanFdFrame::new();
+    frame.arbitration_id =
+        moteus_protocol::calculate_arbitration_id(source_id as i8, dest_id as i8, 0, true);
+    frame.size = proto::write_client_poll(channel, max_length, &mut frame.data);
+
+    frame
+}
+
+/// Creates a frame to poll for diagnostic data with flow control,
+/// acknowledging the last received packet number.
+///
+/// # Arguments
+/// * `dest_id` - Destination CAN ID
+/// * `source_id` - Source CAN ID
+/// * `channel` - Diagnostic channel (usually 1)
+/// * `packet_number` - Last packet number received from the device
+/// * `max_length` - Maximum bytes to read
+pub fn make_diagnostic_read_flow_frame(
+    dest_id: u8,
+    source_id: u8,
+    channel: u8,
+    packet_number: u8,
+    max_length: u8,
+) -> CanFdFrame {
+    let mut frame = CanFdFrame::new();
+    frame.arbitration_id =
+        moteus_protocol::calculate_arbitration_id(source_id as i8, dest_id as i8, 0, true);
+    frame.size = proto::write_client_poll_flow(channel, packet_number, max_length, &mut frame.data);
+
+    frame
+}
+
+/// Parses a diagnostic response frame.
+///
+/// Returns the data if the response is valid for the given channel,
+/// or None if the frame is not a diagnostic response.
+pub fn parse_diagnostic_response(frame: &CanFdFrame, channel: u8) -> Option<DiagnosticResponse> {
+    let data = proto::parse_server_to_client(frame.payload(), channel)?;
+
+    Some(DiagnosticResponse {
+        id: ((frame.arbitration_id >> 8) & 0x7F) as u8,
+        data: data.to_vec(),
+    })
+}
+
+/// Result of parsing a flow-controlled diagnostic response.
+#[derive(Debug, Clone)]
+pub struct DiagnosticFlowResponse {
+    /// The CAN ID of the responding device.
+    pub id: u8,
+    /// The packet number of this response, to acknowledge in the next
+    /// poll.  Wraps from 255 to 0.
+    pub packet_number: u8,
+    /// The data received (may be empty).
+    pub data: Vec<u8>,
+}
+
+/// Parses a flow-controlled diagnostic response frame.
+///
+/// Returns the packet number and data if the response is a valid flow
+/// response for the given channel, or None otherwise.
+pub fn parse_diagnostic_flow_response(
+    frame: &CanFdFrame,
+    channel: u8,
+) -> Option<DiagnosticFlowResponse> {
+    let flow = proto::parse_server_to_client_flow(frame.payload(), channel)?;
+
+    Some(DiagnosticFlowResponse {
+        id: ((frame.arbitration_id >> 8) & 0x7F) as u8,
+        packet_number: flow.packet_number,
+        data: flow.data.to_vec(),
+    })
+}
+
+/// Default number of retries for flow-controlled diagnostic reads.
+pub const DEFAULT_FLOW_RETRIES: u32 = 3;
+
+/// A filter matching plain diagnostic replies from `id`.
+fn plain_reply_filter(id: u8) -> FrameFilter {
+    FrameFilter::custom(move |f| {
+        let frame_source = ((f.arbitration_id >> 8) & 0x7F) as u8;
+        frame_source == id && Command::diagnostic_reply_filter().matches(f)
+    })
+}
+
+/// A filter matching flow-controlled diagnostic replies from `id`.
+fn flow_reply_filter(id: u8) -> FrameFilter {
+    FrameFilter::custom(move |f| {
+        let frame_source = ((f.arbitration_id >> 8) & 0x7F) as u8;
+        frame_source == id && f.size >= 4 && f.data[0] == SERVER_TO_CLIENT_FLOW
+    })
+}
+
+/// A filter matching either kind of diagnostic reply from `id`, used
+/// while probing for flow control support.
+fn probe_reply_filter(id: u8) -> FrameFilter {
+    FrameFilter::custom(move |f| {
+        let frame_source = ((f.arbitration_id >> 8) & 0x7F) as u8;
+        frame_source == id
+            && f.size >= 3
+            && (f.data[0] == SERVER_TO_CLIENT || f.data[0] == SERVER_TO_CLIENT_FLOW)
+    })
+}
+
+// ============================================================================
+// Blocking DiagnosticStream
+// ============================================================================
+
+use crate::blocking_controller::BlockingController;
+use crate::transport::Transport;
+
+/// A blocking diagnostic stream for a moteus controller.
+///
+/// This provides a text-based interface for configuration and debugging.
+/// The diagnostic protocol is line-based and uses commands like:
+/// - `tel stop` - Stop telemetry spew
+/// - `conf get <param>` - Read configuration value
+/// - `conf set <param> <value>` - Set configuration value
+///
+/// # Example
+///
+/// ```no_run
+/// use moteus::BlockingController;
+/// use moteus::diagnostic::DiagnosticStream;
+///
+/// fn main() -> Result<(), moteus::Error> {
+///     let mut ctrl = BlockingController::new(1)?;
+///     let mut stream = DiagnosticStream::new(&mut ctrl);
+///
+///     // Always stop telemetry and flush before using diagnostic commands
+///     stream.write_message(b"tel stop")?;
+///     stream.flush_read()?;
+///
+///     // Read a config value (single-line response)
+///     let kp = stream.command_oneline(b"conf get servo.pid_position.kp")?;
+///     println!("kp = {}", String::from_utf8_lossy(&kp));
+///     Ok(())
+/// }
+/// ```
+pub struct DiagnosticStream<
+    'a,
+    T: Transport = std::sync::Arc<std::sync::Mutex<crate::transport::Router>>,
+> {
+    controller: &'a mut BlockingController<T>,
+    channel: u8,
+    read_buffer: Vec<u8>,
+    /// Whether to use flow-controlled reads.  `None` means not yet
+    /// probed: the first read sends a flow poll and falls back to the
+    /// plain protocol if the device does not answer it.
+    use_flow_control: Option<bool>,
+    /// The last flow control packet number received from the device.
+    last_ack_packet: u8,
+    /// True once any flow packet has been received; until then
+    /// `last_ack_packet` is the protocol-mandated initial 0 and must
+    /// not be used for duplicate detection (the device may genuinely
+    /// start at packet 0).
+    seen_first_packet: bool,
+    /// Retries for flow-controlled reads that receive no response.
+    flow_retries: u32,
+}
+
+impl<'a, T: Transport> std::fmt::Debug for DiagnosticStream<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiagnosticStream")
+            .field("device_id", &self.controller.controller.id)
+            .field("channel", &self.channel)
+            .field("read_buffer_len", &self.read_buffer.len())
+            .field("use_flow_control", &self.use_flow_control)
+            .field("last_ack_packet", &self.last_ack_packet)
+            .finish()
+    }
+}
+
+impl<'a, T: Transport> DiagnosticStream<'a, T> {
+    /// Creates a new diagnostic stream for a controller.
+    pub fn new(controller: &'a mut BlockingController<T>) -> Self {
+        Self::with_channel(controller, DEFAULT_CHANNEL)
+    }
+
+    /// Creates a new diagnostic stream with a specific channel.
+    pub fn with_channel(controller: &'a mut BlockingController<T>, channel: u8) -> Self {
+        Self {
+            controller,
+            channel,
+            read_buffer: Vec::new(),
+            use_flow_control: None,
+            last_ack_packet: 0,
+            seen_first_packet: false,
+            flow_retries: DEFAULT_FLOW_RETRIES,
+        }
+    }
+
+    /// Records a received flow packet, returning its data unless it is
+    /// a retransmission of the most recently acknowledged packet
+    /// (whose data was already delivered).
+    fn accept_flow_packet<'d>(&mut self, flow: &'d DiagnosticFlowResponse) -> &'d [u8] {
+        let duplicate = self.seen_first_packet && flow.packet_number == self.last_ack_packet;
+        self.last_ack_packet = flow.packet_number;
+        self.seen_first_packet = true;
+        if duplicate {
+            &[]
+        } else {
+            &flow.data
+        }
+    }
+
+    /// Forces flow-controlled reads on or off, skipping auto-probing.
+    ///
+    /// Flow control makes reads reliable on lossy transports (such as
+    /// a moteus connected over UART), but requires firmware support.
+    /// By default the first read probes the device and picks
+    /// automatically.
+    #[must_use]
+    pub fn use_flow_control(mut self, enabled: bool) -> Self {
+        self.use_flow_control = Some(enabled);
+        self
+    }
+
+    /// Returns the controller's CAN ID.
+    fn id(&self) -> u8 {
+        self.controller.controller.id
+    }
+
+    /// Returns the controller's source ID.
+    fn source_id(&self) -> u8 {
+        self.controller.controller.source_id
+    }
+
+    /// Writes raw data to the diagnostic stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub fn write(&mut self, data: &[u8]) -> Result<()> {
+        // Split into chunks if necessary
+        for chunk in data.chunks(MAX_DIAGNOSTIC_WRITE) {
+            let frame =
+                make_diagnostic_write_frame(self.id(), self.source_id(), self.channel, chunk);
+            // Write frames don't expect a reply
+            let mut requests = [Request::new(frame).with_expected_replies(0)];
+            self.controller.transport.cycle(&mut requests)?;
+        }
+        Ok(())
+    }
+
+    /// Writes a message (with newline) to the diagnostic stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub fn write_message(&mut self, data: &[u8]) -> Result<()> {
+        let mut msg = data.to_vec();
+        msg.push(b'\n');
+        self.write(&msg)
+    }
+
+    /// Reads data from the diagnostic stream.
+    ///
+    /// Returns up to `max_bytes` of available data.
+    ///
+    /// On the first read, the device is probed for flow control
+    /// support (unless [`use_flow_control`](Self::use_flow_control)
+    /// forced a mode); flow-controlled reads are reliable on lossy
+    /// transports such as UART.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub fn read(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        match self.use_flow_control {
+            Some(true) => self.read_flow(max_bytes),
+            Some(false) => self.read_plain(max_bytes),
+            None => self.probe_flow_control(max_bytes),
+        }
+    }
+
+    /// Reads using the plain (non-flow-controlled) protocol.
+    fn read_plain(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        let read_size = std::cmp::min(max_bytes, MAX_DIAGNOSTIC_READ) as u8;
+        let frame =
+            make_diagnostic_read_frame(self.id(), self.source_id(), self.channel, read_size);
+
+        let mut requests = [Request::new(frame)
+            .with_filter(plain_reply_filter(self.id()))
+            .with_expected_replies(1)];
+        self.controller.transport.cycle(&mut requests)?;
+
+        let mut result = Vec::new();
+        for response in requests[0].responses.take() {
+            if let Some(diag) = parse_diagnostic_response(&response, self.channel) {
+                result.extend(diag.data);
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Reads using the flow-controlled protocol, retrying when no
+    /// response arrives.  Re-polling with the same acknowledged packet
+    /// number makes the device retransmit unacknowledged data, so
+    /// retries never lose data.
+    fn read_flow(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        let read_size = std::cmp::min(max_bytes, MAX_DIAGNOSTIC_READ) as u8;
+
+        for _attempt in 0..=self.flow_retries {
+            let frame = make_diagnostic_read_flow_frame(
+                self.id(),
+                self.source_id(),
+                self.channel,
+                self.last_ack_packet,
+                read_size,
+            );
+
+            let mut requests = [Request::new(frame)
+                .with_filter(flow_reply_filter(self.id()))
+                .with_expected_replies(1)];
+            self.controller.transport.cycle(&mut requests)?;
+
+            let mut result = Vec::new();
+            let mut any_response = false;
+            for response in requests[0].responses.take() {
+                if let Some(flow) = parse_diagnostic_flow_response(&response, self.channel) {
+                    // Always advance the ack, even when the data is
+                    // empty; otherwise the device will not send new
+                    // data.  Retransmitted packets are acknowledged
+                    // but their data is not delivered twice.
+                    result.extend(self.accept_flow_packet(&flow));
+                    any_response = true;
+                }
+            }
+
+            if any_response {
+                return Ok(result);
+            }
+        }
+
+        Err(Error::Timeout)
+    }
+
+    /// Probes the device for flow control support with a flow poll,
+    /// remembering the result and returning any data the probe
+    /// consumed.
+    fn probe_flow_control(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        let read_size = std::cmp::min(max_bytes, MAX_DIAGNOSTIC_READ) as u8;
+        let frame = make_diagnostic_read_flow_frame(
+            self.id(),
+            self.source_id(),
+            self.channel,
+            0,
+            read_size,
+        );
+
+        let mut requests = [Request::new(frame)
+            .with_filter(probe_reply_filter(self.id()))
+            .with_expected_replies(1)];
+        self.controller.transport.cycle(&mut requests)?;
+
+        let mut result = Vec::new();
+        let mut got_flow = false;
+        let mut got_plain = false;
+        for response in requests[0].responses.take() {
+            if let Some(flow) = parse_diagnostic_flow_response(&response, self.channel) {
+                result.extend(self.accept_flow_packet(&flow));
+                got_flow = true;
+            } else if let Some(diag) = parse_diagnostic_response(&response, self.channel) {
+                result.extend(diag.data);
+                got_plain = true;
+            }
+        }
+
+        if got_flow {
+            self.use_flow_control = Some(true);
+        } else if !got_plain {
+            // Silence means the device ignored the flow poll: it does
+            // not support flow control.
+            self.use_flow_control = Some(false);
+        }
+        // A plain-only response cannot be an answer to a flow poll —
+        // it is almost certainly a stale reply to an earlier plain
+        // read.  Deliver its data but probe again on the next read
+        // rather than latching a possibly-wrong mode.
+
+        Ok(result)
+    }
+
+    /// Flushes any pending read data.
+    ///
+    /// This should be called after `tel stop` to clear any buffered telemetry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub fn flush_read(&mut self) -> Result<()> {
+        self.read_buffer.clear();
+
+        let start = std::time::Instant::now();
+        let timeout = std::time::Duration::from_millis(200);
+
+        while start.elapsed() < timeout {
+            // Use plain reads: flushed data is discarded anyway, so
+            // flow control would only add overhead, and this avoids
+            // probing on devices that are never read.
+            let data = self.read_plain(MAX_DIAGNOSTIC_READ)?;
+            if data.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+
+        self.read_buffer.clear();
+        Ok(())
+    }
+
+    /// Reads a single line from the diagnostic stream.
+    ///
+    /// Lines are terminated by '\n' or '\r'. Empty lines are skipped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub fn readline(&mut self) -> Result<Vec<u8>> {
+        loop {
+            // Check for newline in buffer
+            if let Some(pos) = self
+                .read_buffer
+                .iter()
+                .position(|&b| b == b'\n' || b == b'\r')
+            {
+                let line: Vec<u8> = self.read_buffer.drain(..=pos).collect();
+                // Strip trailing newline/carriage return
+                let line: Vec<u8> = line
+                    .into_iter()
+                    .filter(|&b| b != b'\n' && b != b'\r')
+                    .collect();
+
+                // Skip empty lines
+                if !line.is_empty() {
+                    return Ok(line);
+                }
+                continue;
+            }
+
+            // Read more data
+            let data = self.read(MAX_DIAGNOSTIC_READ)?;
+            if data.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            self.read_buffer.extend(data);
+        }
+    }
+
+    /// Reads lines until "OK" or "ERR" is received.
+    fn read_until_ok(&mut self) -> Result<Vec<u8>> {
+        let mut result = Vec::new();
+
+        loop {
+            let line = self.readline()?;
+
+            if line.starts_with(b"OK") {
+                return Ok(result);
+            }
+
+            if line.starts_with(b"ERR") {
+                return Err(Error::Protocol(String::from_utf8_lossy(&line).to_string()));
+            }
+
+            result.extend(&line);
+            result.push(b'\n');
+        }
+    }
+
+    /// Sends a command and reads the response until "OK".
+    ///
+    /// Returns all lines received before the "OK" terminator.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not
+    /// respond. Returns `Error::Protocol` if the device replies with "ERR".
+    pub fn command(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        self.write_message(data)?;
+        self.read_until_ok()
+    }
+
+    /// Sends a command and reads a single line of response.
+    ///
+    /// This is useful for commands like `conf get` which return a
+    /// single value without a trailing "OK".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub fn command_oneline(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        self.write_message(data)?;
+        self.readline()
+    }
+}
+
+// ============================================================================
+// Async DiagnosticStream
+// ============================================================================
+
+#[cfg(feature = "tokio")]
+use crate::async_controller::AsyncController;
+#[cfg(feature = "tokio")]
+use crate::transport::async_transport::AsyncTransport;
+
+/// An async diagnostic stream for a moteus controller.
+///
+/// This is the async version of `DiagnosticStream`.
+///
+/// # Cancel safety
+///
+/// Router-level operations are cancel safe. However, multi-step
+/// diagnostic sequences are not transactional — if `command()` is
+/// cancelled between write and read, the response is lost. Call
+/// `flush_read()` to resync after cancellation.
+///
+/// # Example
+///
+/// ```no_run
+/// use moteus::AsyncController;
+/// use moteus::diagnostic::AsyncDiagnosticStream;
+///
+/// # async fn example() -> Result<(), moteus::Error> {
+/// let mut ctrl = AsyncController::new(1).await?;
+/// let mut stream = AsyncDiagnosticStream::new(&mut ctrl);
+///
+/// stream.write_message(b"tel stop").await?;
+/// stream.flush_read().await?;
+///
+/// let kp = stream.command_oneline(b"conf get servo.pid_position.kp").await?;
+/// # Ok(())
+/// # }
+/// ```
+#[cfg(feature = "tokio")]
+pub struct AsyncDiagnosticStream<
+    'a,
+    T: AsyncTransport = std::sync::Arc<
+        tokio::sync::Mutex<crate::transport::async_transport::AsyncRouter>,
+    >,
+> {
+    controller: &'a mut AsyncController<T>,
+    channel: u8,
+    read_buffer: Vec<u8>,
+    /// Whether to use flow-controlled reads.  `None` means not yet
+    /// probed: the first read sends a flow poll and falls back to the
+    /// plain protocol if the device does not answer it.
+    use_flow_control: Option<bool>,
+    /// The last flow control packet number received from the device.
+    last_ack_packet: u8,
+    /// True once any flow packet has been received; until then
+    /// `last_ack_packet` is the protocol-mandated initial 0 and must
+    /// not be used for duplicate detection (the device may genuinely
+    /// start at packet 0).
+    seen_first_packet: bool,
+    /// Retries for flow-controlled reads that receive no response.
+    flow_retries: u32,
+}
+
+#[cfg(feature = "tokio")]
+impl<'a, T: AsyncTransport> std::fmt::Debug for AsyncDiagnosticStream<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AsyncDiagnosticStream")
+            .field("device_id", &self.controller.controller.id)
+            .field("channel", &self.channel)
+            .field("read_buffer_len", &self.read_buffer.len())
+            .field("use_flow_control", &self.use_flow_control)
+            .field("last_ack_packet", &self.last_ack_packet)
+            .finish()
+    }
+}
+
+#[cfg(feature = "tokio")]
+impl<'a, T: AsyncTransport> AsyncDiagnosticStream<'a, T> {
+    /// Creates a new async diagnostic stream for a controller.
+    pub fn new(controller: &'a mut AsyncController<T>) -> Self {
+        Self::with_channel(controller, DEFAULT_CHANNEL)
+    }
+
+    /// Creates a new async diagnostic stream with a specific channel.
+    pub fn with_channel(controller: &'a mut AsyncController<T>, channel: u8) -> Self {
+        Self {
+            controller,
+            channel,
+            read_buffer: Vec::new(),
+            use_flow_control: None,
+            last_ack_packet: 0,
+            seen_first_packet: false,
+            flow_retries: DEFAULT_FLOW_RETRIES,
+        }
+    }
+
+    /// Records a received flow packet, returning its data unless it is
+    /// a retransmission of the most recently acknowledged packet
+    /// (whose data was already delivered).
+    fn accept_flow_packet<'d>(&mut self, flow: &'d DiagnosticFlowResponse) -> &'d [u8] {
+        let duplicate = self.seen_first_packet && flow.packet_number == self.last_ack_packet;
+        self.last_ack_packet = flow.packet_number;
+        self.seen_first_packet = true;
+        if duplicate {
+            &[]
+        } else {
+            &flow.data
+        }
+    }
+
+    /// Forces flow-controlled reads on or off, skipping auto-probing.
+    ///
+    /// Flow control makes reads reliable on lossy transports (such as
+    /// a moteus connected over UART), but requires firmware support.
+    /// By default the first read probes the device and picks
+    /// automatically.
+    #[must_use]
+    pub fn use_flow_control(mut self, enabled: bool) -> Self {
+        self.use_flow_control = Some(enabled);
+        self
+    }
+
+    /// Returns the controller's CAN ID.
+    fn id(&self) -> u8 {
+        self.controller.controller.id
+    }
+
+    /// Returns the controller's source ID.
+    fn source_id(&self) -> u8 {
+        self.controller.controller.source_id
+    }
+
+    /// Writes raw data to the diagnostic stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub async fn write(&mut self, data: &[u8]) -> Result<()> {
+        for chunk in data.chunks(MAX_DIAGNOSTIC_WRITE) {
+            let frame =
+                make_diagnostic_write_frame(self.id(), self.source_id(), self.channel, chunk);
+            // Write frames don't expect a reply
+            let mut requests = [Request::new(frame).with_expected_replies(0)];
+            self.controller.transport.cycle(&mut requests).await?;
+        }
+        Ok(())
+    }
+
+    /// Writes a message (with newline) to the diagnostic stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub async fn write_message(&mut self, data: &[u8]) -> Result<()> {
+        let mut msg = data.to_vec();
+        msg.push(b'\n');
+        self.write(&msg).await
+    }
+
+    /// Reads data from the diagnostic stream.
+    ///
+    /// On the first read, the device is probed for flow control
+    /// support (unless [`use_flow_control`](Self::use_flow_control)
+    /// forced a mode); flow-controlled reads are reliable on lossy
+    /// transports such as UART.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub async fn read(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        match self.use_flow_control {
+            Some(true) => self.read_flow(max_bytes).await,
+            Some(false) => self.read_plain(max_bytes).await,
+            None => self.probe_flow_control(max_bytes).await,
+        }
+    }
+
+    /// Reads using the plain (non-flow-controlled) protocol.
+    async fn read_plain(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        let read_size = std::cmp::min(max_bytes, MAX_DIAGNOSTIC_READ) as u8;
+        let frame =
+            make_diagnostic_read_frame(self.id(), self.source_id(), self.channel, read_size);
+
+        let mut requests = [Request::new(frame)
+            .with_filter(plain_reply_filter(self.id()))
+            .with_expected_replies(1)];
+        self.controller.transport.cycle(&mut requests).await?;
+
+        let mut result = Vec::new();
+        for response in requests[0].responses.take() {
+            if let Some(diag) = parse_diagnostic_response(&response, self.channel) {
+                result.extend(diag.data);
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Reads using the flow-controlled protocol, retrying when no
+    /// response arrives.  Re-polling with the same acknowledged packet
+    /// number makes the device retransmit unacknowledged data, so
+    /// retries never lose data.
+    async fn read_flow(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        let read_size = std::cmp::min(max_bytes, MAX_DIAGNOSTIC_READ) as u8;
+
+        for _attempt in 0..=self.flow_retries {
+            let frame = make_diagnostic_read_flow_frame(
+                self.id(),
+                self.source_id(),
+                self.channel,
+                self.last_ack_packet,
+                read_size,
+            );
+
+            let mut requests = [Request::new(frame)
+                .with_filter(flow_reply_filter(self.id()))
+                .with_expected_replies(1)];
+            self.controller.transport.cycle(&mut requests).await?;
+
+            let mut result = Vec::new();
+            let mut any_response = false;
+            for response in requests[0].responses.take() {
+                if let Some(flow) = parse_diagnostic_flow_response(&response, self.channel) {
+                    // Always advance the ack, even when the data is
+                    // empty; otherwise the device will not send new
+                    // data.  Retransmitted packets are acknowledged
+                    // but their data is not delivered twice.
+                    result.extend(self.accept_flow_packet(&flow));
+                    any_response = true;
+                }
+            }
+
+            if any_response {
+                return Ok(result);
+            }
+        }
+
+        Err(Error::Timeout)
+    }
+
+    /// Probes the device for flow control support with a flow poll,
+    /// remembering the result and returning any data the probe
+    /// consumed.
+    async fn probe_flow_control(&mut self, max_bytes: usize) -> Result<Vec<u8>> {
+        let read_size = std::cmp::min(max_bytes, MAX_DIAGNOSTIC_READ) as u8;
+        let frame = make_diagnostic_read_flow_frame(
+            self.id(),
+            self.source_id(),
+            self.channel,
+            0,
+            read_size,
+        );
+
+        let mut requests = [Request::new(frame)
+            .with_filter(probe_reply_filter(self.id()))
+            .with_expected_replies(1)];
+        self.controller.transport.cycle(&mut requests).await?;
+
+        let mut result = Vec::new();
+        let mut got_flow = false;
+        let mut got_plain = false;
+        for response in requests[0].responses.take() {
+            if let Some(flow) = parse_diagnostic_flow_response(&response, self.channel) {
+                result.extend(self.accept_flow_packet(&flow));
+                got_flow = true;
+            } else if let Some(diag) = parse_diagnostic_response(&response, self.channel) {
+                result.extend(diag.data);
+                got_plain = true;
+            }
+        }
+
+        if got_flow {
+            self.use_flow_control = Some(true);
+        } else if !got_plain {
+            // Silence means the device ignored the flow poll: it does
+            // not support flow control.
+            self.use_flow_control = Some(false);
+        }
+        // A plain-only response cannot be an answer to a flow poll —
+        // it is almost certainly a stale reply to an earlier plain
+        // read.  Deliver its data but probe again on the next read
+        // rather than latching a possibly-wrong mode.
+
+        Ok(result)
+    }
+
+    /// Flushes any pending read data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub async fn flush_read(&mut self) -> Result<()> {
+        self.read_buffer.clear();
+
+        let start = std::time::Instant::now();
+        let timeout = std::time::Duration::from_millis(200);
+
+        while start.elapsed() < timeout {
+            // Use plain reads: flushed data is discarded anyway, so
+            // flow control would only add overhead, and this avoids
+            // probing on devices that are never read.
+            let data = self.read_plain(MAX_DIAGNOSTIC_READ).await?;
+            if data.is_empty() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        }
+
+        self.read_buffer.clear();
+        Ok(())
+    }
+
+    /// Reads a single line from the diagnostic stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub async fn readline(&mut self) -> Result<Vec<u8>> {
+        loop {
+            // Check for newline in buffer
+            if let Some(pos) = self
+                .read_buffer
+                .iter()
+                .position(|&b| b == b'\n' || b == b'\r')
+            {
+                let line: Vec<u8> = self.read_buffer.drain(..=pos).collect();
+                let line: Vec<u8> = line
+                    .into_iter()
+                    .filter(|&b| b != b'\n' && b != b'\r')
+                    .collect();
+
+                if !line.is_empty() {
+                    return Ok(line);
+                }
+                continue;
+            }
+
+            // Read more data
+            let data = self.read(MAX_DIAGNOSTIC_READ).await?;
+            if data.is_empty() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            self.read_buffer.extend(data);
+        }
+    }
+
+    /// Reads lines until "OK" or "ERR" is received.
+    async fn read_until_ok(&mut self) -> Result<Vec<u8>> {
+        let mut result = Vec::new();
+
+        loop {
+            let line = self.readline().await?;
+
+            if line.starts_with(b"OK") {
+                return Ok(result);
+            }
+
+            if line.starts_with(b"ERR") {
+                return Err(Error::Protocol(String::from_utf8_lossy(&line).to_string()));
+            }
+
+            result.extend(&line);
+            result.push(b'\n');
+        }
+    }
+
+    /// Sends a command and reads the response until "OK".
+    ///
+    /// Returns all lines received before the "OK" terminator.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not
+    /// respond. Returns `Error::Protocol` if the device replies with "ERR".
+    pub async fn command(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        self.write_message(data).await?;
+        self.read_until_ok().await
+    }
+
+    /// Sends a command and reads a single line of response.
+    ///
+    /// This is useful for commands like `conf get` which return a
+    /// single value without a trailing "OK".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication fails or the device does not respond.
+    pub async fn command_oneline(&mut self, data: &[u8]) -> Result<Vec<u8>> {
+        self.write_message(data).await?;
+        self.readline().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transport::transaction::dispatch_frame;
+    use moteus_protocol::{CLIENT_POLL_SERVER, CLIENT_POLL_SERVER_FLOW, CLIENT_TO_SERVER};
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    /// A transport that calls a user-supplied function to generate
+    /// replies on each cycle, allowing tests to simulate multi-step
+    /// protocol exchanges.
+    struct ScriptedTransport {
+        responder: Box<dyn FnMut(&CanFdFrame) -> Vec<CanFdFrame> + Send>,
+        sent: Arc<Mutex<Vec<CanFdFrame>>>,
+        timeout: Duration,
+    }
+
+    impl ScriptedTransport {
+        fn new(
+            responder: impl FnMut(&CanFdFrame) -> Vec<CanFdFrame> + Send + 'static,
+        ) -> (Self, Arc<Mutex<Vec<CanFdFrame>>>) {
+            let sent = Arc::new(Mutex::new(Vec::new()));
+            (
+                Self {
+                    responder: Box::new(responder),
+                    sent: sent.clone(),
+                    timeout: Duration::from_millis(100),
+                },
+                sent,
+            )
+        }
+    }
+
+    impl Transport for ScriptedTransport {
+        fn cycle(&mut self, requests: &mut [Request]) -> Result<()> {
+            for i in 0..requests.len() {
+                if let Some(frame) = requests[i].frame.clone() {
+                    self.sent.lock().unwrap().push(frame.clone());
+                    for reply in (self.responder)(&frame) {
+                        dispatch_frame(&reply, requests);
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        fn write(&mut self, _frame: &CanFdFrame) -> Result<()> {
+            Ok(())
+        }
+
+        fn read(&mut self, _channel: Option<usize>) -> Result<Option<CanFdFrame>> {
+            Ok(None)
+        }
+
+        fn flush_read(&mut self, _channel: Option<usize>) -> Result<()> {
+            Ok(())
+        }
+
+        fn set_timeout(&mut self, timeout: Duration) {
+            self.timeout = timeout;
+        }
+
+        fn timeout(&self) -> Duration {
+            self.timeout
+        }
+    }
+
+    /// Builds a flow response frame from device `id` on channel 1.
+    fn flow_response(id: u8, packet_number: u8, data: &[u8]) -> CanFdFrame {
+        let mut frame = CanFdFrame::new();
+        frame.arbitration_id = moteus_protocol::calculate_arbitration_id(id as i8, 0, 0, false);
+        frame.data[0] = moteus_protocol::SERVER_TO_CLIENT_FLOW;
+        frame.data[1] = 1; // channel
+        frame.data[2] = packet_number;
+        frame.data[3] = data.len() as u8;
+        frame.data[4..4 + data.len()].copy_from_slice(data);
+        frame.size = (4 + data.len()) as u8;
+        frame
+    }
+
+    /// Builds a plain diagnostic response frame from device `id` on
+    /// channel 1.
+    fn plain_response(id: u8, data: &[u8]) -> CanFdFrame {
+        let mut frame = CanFdFrame::new();
+        frame.arbitration_id = moteus_protocol::calculate_arbitration_id(id as i8, 0, 0, false);
+        frame.data[0] = SERVER_TO_CLIENT;
+        frame.data[1] = 1; // channel
+        frame.data[2] = data.len() as u8;
+        frame.data[3..3 + data.len()].copy_from_slice(data);
+        frame.size = (3 + data.len()) as u8;
+        frame
+    }
+
+    #[test]
+    fn test_flow_control_probe_enabled() {
+        let (transport, sent) = ScriptedTransport::new(|frame: &CanFdFrame| {
+            match frame.data[0] {
+                CLIENT_POLL_SERVER_FLOW => {
+                    // packet_number is data[2]; reply with the next one
+                    vec![flow_response(1, frame.data[2].wrapping_add(1), b"hi")]
+                }
+                _ => vec![],
+            }
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl);
+
+        // The probe consumes data, which must be preserved.
+        assert_eq!(stream.read(48).unwrap(), b"hi");
+        assert_eq!(stream.use_flow_control, Some(true));
+        assert_eq!(stream.last_ack_packet, 1);
+
+        // Subsequent reads use the flow protocol and acknowledge the
+        // last received packet.
+        assert_eq!(stream.read(48).unwrap(), b"hi");
+        assert_eq!(stream.last_ack_packet, 2);
+
+        let sent = sent.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(sent[1].data[0], CLIENT_POLL_SERVER_FLOW);
+        assert_eq!(sent[1].data[2], 1, "second poll acks packet 1");
+    }
+
+    #[test]
+    fn test_flow_control_probe_disabled_plain() {
+        // A device that does not understand flow polls (and so never
+        // answers them) but answers plain polls.
+        let (transport, sent) = ScriptedTransport::new(|frame: &CanFdFrame| {
+            match frame.data[0] {
+                CLIENT_POLL_SERVER => vec![plain_response(1, b"plain")],
+                _ => vec![], // Old firmware ignores 0x44.
+            }
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl);
+
+        // The probe gets no response: fall back to the plain protocol.
+        assert_eq!(stream.read(48).unwrap(), b"");
+        assert_eq!(stream.use_flow_control, Some(false));
+
+        assert_eq!(stream.read(48).unwrap(), b"plain");
+        let sent = sent.lock().unwrap();
+        assert_eq!(sent[1].data[0], CLIENT_POLL_SERVER);
+    }
+
+    #[test]
+    fn test_flow_control_forced_off() {
+        let (transport, sent) = ScriptedTransport::new(|frame: &CanFdFrame| match frame.data[0] {
+            CLIENT_POLL_SERVER => vec![plain_response(1, b"data")],
+            _ => vec![],
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(false);
+
+        // No probe: the first poll is already plain.
+        assert_eq!(stream.read(48).unwrap(), b"data");
+        assert_eq!(sent.lock().unwrap()[0].data[0], CLIENT_POLL_SERVER);
+    }
+
+    #[test]
+    fn test_flow_control_arbitrary_start_packet() {
+        // The device may start at any packet number; the probe must
+        // adopt it.
+        let (transport, _sent) = ScriptedTransport::new(|frame: &CanFdFrame| match frame.data[0] {
+            CLIENT_POLL_SERVER_FLOW if frame.data[2] == 0 => {
+                vec![flow_response(1, 200, b"a")]
+            }
+            CLIENT_POLL_SERVER_FLOW if frame.data[2] == 200 => {
+                vec![flow_response(1, 201, b"b")]
+            }
+            _ => vec![],
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl);
+
+        assert_eq!(stream.read(48).unwrap(), b"a");
+        assert_eq!(stream.last_ack_packet, 200);
+        assert_eq!(stream.read(48).unwrap(), b"b");
+        assert_eq!(stream.last_ack_packet, 201);
+    }
+
+    #[test]
+    fn test_flow_control_packet_number_wraps() {
+        let (transport, _sent) = ScriptedTransport::new(|frame: &CanFdFrame| {
+            match frame.data[0] {
+                CLIENT_POLL_SERVER_FLOW => {
+                    // Respond with the wrapped successor packet number.
+                    vec![flow_response(1, frame.data[2].wrapping_add(1), b"x")]
+                }
+                _ => vec![],
+            }
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(true);
+        stream.last_ack_packet = 255;
+        stream.seen_first_packet = true;
+
+        assert_eq!(stream.read(48).unwrap(), b"x");
+        assert_eq!(stream.last_ack_packet, 0, "packet number wraps 255 -> 0");
+    }
+
+    #[test]
+    fn test_flow_control_duplicate_packet_not_delivered_twice() {
+        // A retransmission of the most recent packet (e.g. caused by a
+        // lost ack on a lossy UART) is acknowledged but its data is
+        // not duplicated.
+        let (transport, _sent) = ScriptedTransport::new(|frame: &CanFdFrame| {
+            match frame.data[0] {
+                CLIENT_POLL_SERVER_FLOW => {
+                    // Always answer with packet 5: the first delivery
+                    // is real, every further one is a retransmission.
+                    vec![flow_response(1, 5, b"dup")]
+                }
+                _ => vec![],
+            }
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(true);
+
+        assert_eq!(stream.read(48).unwrap(), b"dup");
+        assert_eq!(stream.read(48).unwrap(), b"", "retransmission deduplicated");
+        assert_eq!(stream.last_ack_packet, 5);
+    }
+
+    #[test]
+    fn test_flow_control_first_packet_zero_is_delivered() {
+        // The device may legitimately start at packet number 0, which
+        // matches the initial ack value; it must not be treated as a
+        // duplicate.
+        let (transport, _sent) = ScriptedTransport::new(|frame: &CanFdFrame| match frame.data[0] {
+            CLIENT_POLL_SERVER_FLOW => vec![flow_response(1, 0, b"first")],
+            _ => vec![],
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(true);
+
+        assert_eq!(stream.read(48).unwrap(), b"first");
+    }
+
+    #[test]
+    fn test_flow_control_probe_not_latched_by_plain_response() {
+        // A stale plain reply arriving during the probe (e.g. a late
+        // response to an earlier timed-out plain read) must not lock
+        // the stream out of flow control.
+        let mut polls = 0;
+        let (transport, _sent) = ScriptedTransport::new(move |frame: &CanFdFrame| {
+            match frame.data[0] {
+                CLIENT_POLL_SERVER_FLOW => {
+                    polls += 1;
+                    if polls == 1 {
+                        // Stale plain frame satisfies the first probe.
+                        vec![plain_response(1, b"stale")]
+                    } else {
+                        vec![flow_response(1, 7, b"flow")]
+                    }
+                }
+                _ => vec![],
+            }
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl);
+
+        // The stale data is delivered, but the mode is not latched.
+        assert_eq!(stream.read(48).unwrap(), b"stale");
+        assert_eq!(stream.use_flow_control, None);
+
+        // The next read re-probes and correctly detects flow support.
+        assert_eq!(stream.read(48).unwrap(), b"flow");
+        assert_eq!(stream.use_flow_control, Some(true));
+    }
+
+    #[test]
+    fn test_flow_control_advances_ack_on_empty_data() {
+        let (transport, _sent) = ScriptedTransport::new(|frame: &CanFdFrame| match frame.data[0] {
+            CLIENT_POLL_SERVER_FLOW => {
+                vec![flow_response(1, frame.data[2].wrapping_add(1), b"")]
+            }
+            _ => vec![],
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(true);
+
+        assert_eq!(stream.read(48).unwrap(), b"");
+        assert_eq!(stream.last_ack_packet, 1, "ack advances even when empty");
+    }
+
+    #[test]
+    fn test_flow_control_read_retries() {
+        // The first flow poll's response is lost; the retry re-polls
+        // with the same ack and succeeds.
+        let mut polls = 0;
+        let (transport, sent) = ScriptedTransport::new(move |frame: &CanFdFrame| {
+            match frame.data[0] {
+                CLIENT_POLL_SERVER_FLOW => {
+                    polls += 1;
+                    if polls == 1 {
+                        vec![] // Response lost.
+                    } else {
+                        vec![flow_response(1, frame.data[2].wrapping_add(1), b"ok")]
+                    }
+                }
+                _ => vec![],
+            }
+        });
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(true);
+
+        assert_eq!(stream.read(48).unwrap(), b"ok");
+
+        let sent = sent.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(
+            sent[0].data[2], sent[1].data[2],
+            "retry re-acks the same packet"
+        );
+    }
+
+    #[test]
+    fn test_flow_control_retries_exhausted() {
+        let (transport, sent) = ScriptedTransport::new(|_: &CanFdFrame| vec![]);
+
+        let mut ctrl = BlockingController::with_transport(1, transport);
+        let mut stream = DiagnosticStream::new(&mut ctrl).use_flow_control(true);
+
+        assert!(matches!(stream.read(48), Err(Error::Timeout)));
+        assert_eq!(
+            sent.lock().unwrap().len(),
+            1 + DEFAULT_FLOW_RETRIES as usize
+        );
+    }
+
+    #[test]
+    fn test_make_diagnostic_read_flow_frame() {
+        let frame = make_diagnostic_read_flow_frame(1, 0, 1, 0xAB, 48);
+
+        assert_eq!(
+            frame.arbitration_id,
+            moteus_protocol::calculate_arbitration_id(0, 1, 0, true)
+        );
+        assert_eq!(frame.data[0], CLIENT_POLL_SERVER_FLOW);
+        assert_eq!(frame.data[1], 1); // channel
+        assert_eq!(frame.data[2], 0xAB); // packet_number
+        assert_eq!(frame.data[3], 48); // max_length
+        assert_eq!(frame.size, 4);
+    }
+
+    #[test]
+    fn test_parse_diagnostic_flow_response() {
+        let frame = flow_response(1, 7, b"abc");
+        let parsed = parse_diagnostic_flow_response(&frame, 1).unwrap();
+        assert_eq!(parsed.id, 1);
+        assert_eq!(parsed.packet_number, 7);
+        assert_eq!(parsed.data, b"abc");
+
+        // Wrong channel.
+        assert!(parse_diagnostic_flow_response(&frame, 2).is_none());
+
+        // A plain response is not a flow response.
+        let frame = plain_response(1, b"abc");
+        assert!(parse_diagnostic_flow_response(&frame, 1).is_none());
+    }
+
+    #[test]
+    fn test_make_diagnostic_write_frame() {
+        let frame = make_diagnostic_write_frame(1, 0, 1, b"hello");
+
+        assert_eq!(
+            frame.arbitration_id,
+            moteus_protocol::calculate_arbitration_id(0, 1, 0, false)
+        );
+        assert_eq!(frame.data[0], CLIENT_TO_SERVER);
+        assert_eq!(frame.data[1], 1); // channel
+        assert_eq!(frame.data[2], 5); // length
+        assert_eq!(&frame.data[3..8], b"hello");
+        assert_eq!(frame.size, 8);
+    }
+
+    #[test]
+    fn test_make_diagnostic_read_frame() {
+        let frame = make_diagnostic_read_frame(1, 0, 1, 48);
+
+        assert_eq!(
+            frame.arbitration_id,
+            moteus_protocol::calculate_arbitration_id(0, 1, 0, true)
+        );
+        assert_eq!(frame.data[0], CLIENT_POLL_SERVER);
+        assert_eq!(frame.data[1], 1); // channel
+        assert_eq!(frame.data[2], 48); // max_length
+        assert_eq!(frame.size, 3);
+    }
+
+    #[test]
+    fn test_parse_diagnostic_response() {
+        let mut frame = CanFdFrame::new();
+        frame.arbitration_id = 0x8100; // Source ID 1
+        frame.data[0] = SERVER_TO_CLIENT;
+        frame.data[1] = 1; // channel
+        frame.data[2] = 5; // length
+        frame.data[3..8].copy_from_slice(b"hello");
+        frame.size = 8;
+
+        let result = parse_diagnostic_response(&frame, 1).unwrap();
+        assert_eq!(result.id, 1);
+        assert_eq!(result.data, b"hello");
+    }
+
+    #[test]
+    fn test_parse_diagnostic_response_wrong_channel() {
+        let mut frame = CanFdFrame::new();
+        frame.data[0] = SERVER_TO_CLIENT;
+        frame.data[1] = 2; // different channel
+        frame.data[2] = 5;
+        frame.size = 8;
+
+        let result = parse_diagnostic_response(&frame, 1);
+        assert!(result.is_none());
+    }
+}

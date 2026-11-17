@@ -33,23 +33,39 @@ void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 
 void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
 {
-  /*
-  if (motorDevice->refSpeed == 0.0f) Motor_Enable(motorDevice, MOTOR_STATUS_DISABLE);
-  else Motor_Enable(motorDevice, MOTOR_STATUS_ENABLE);
-  */
-	/* Apply PID */
-	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
-	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
+	float rawSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
+	motorDevice->measSpeed = LowPassFilter_Update(&motorDevice->lpFilt, rawSpeed);
 
-	float ff= 0.0f;
-	if (fabs(motorDevice->refSpeed) > motorDevice->speedDeadband){
-		ff = motorDevice->ffVoltage * (motorDevice->refSpeed > 0.0f ? 1.0f : -1.0f);
+	if (!motorDevice->enable)
+	{
+		motorDevice->voltage = 0;
+		MAX581x_CodeLoad(dacDevice, motorDevice->outputID, 0);
+		return;
 	}
-	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
-	
-	
 
-	Motor_SetVoltage(motorDevice, dacDevice, motorDevice->pid.output+ff);
+	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
+
+	float ff = 0.0f;
+	if (fabsf(motorDevice->refSpeed) > motorDevice->speedDeadband)
+	{
+		float sign = (motorDevice->refSpeed > 0.0f) ? 1.0f : -1.0f;
+		ff += motorDevice->ffFrictionGain * sign;
+		ff += motorDevice->ffVelocityGain * motorDevice->refSpeed;
+	}
+
+	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
+
+	float out = motorDevice->pid.output + ff;
+	float absOut = fabsf(out);
+	if (absOut > 4095.0f) absOut = 4095.0f;
+	motorDevice->voltage = (uint16_t)(absOut);
+
+	if (out >= 0.0f)
+		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_SET);
+	else
+		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_RESET);
+
+	MAX581x_CodeLoad(dacDevice, motorDevice->outputID, motorDevice->voltage);
 }
 
 void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable)
@@ -67,6 +83,7 @@ void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable)
 
 void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake)
 {
+	// NOTE: Brake is active LOW on this H-bridge
 	if(brake == MOTOR_BRAKE_ENABLE)
 	{
 		HAL_GPIO_WritePin(motorDevice->brakePin.GPIOx, motorDevice->brakePin.GPIO_Pin, GPIO_PIN_RESET);	
@@ -79,16 +96,17 @@ void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake)
 
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
 {
-	if(speed >= (float)0.0)
+	float absSpeed = fabsf(speed);
+	if (absSpeed > 4095.0f) absSpeed = 4095.0f;
+
+	if(speed >= 0.0f)
 	{
 		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_SET);
-		motorDevice->voltage = (uint16_t)(speed);
-		MAX581x_CodeLoad(dacDevice, motorDevice->outputID, motorDevice->voltage);
 	}
 	else
 	{
 		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_RESET);
-		motorDevice->voltage = (uint16_t)(fabs(speed));
-		MAX581x_CodeLoad(dacDevice, motorDevice->outputID, motorDevice->voltage);
-	}	
+	}
+	motorDevice->voltage = (uint16_t)(absSpeed);
+	MAX581x_CodeLoad(dacDevice, motorDevice->outputID, motorDevice->voltage);
 }

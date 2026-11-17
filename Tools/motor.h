@@ -53,22 +53,17 @@
 #include "encoder.h"
 #include "PID.h"
 #include "MAX581x.h"
+#include "lowpass_iir.h"
 
 enum {
 	WHEEL_P_ROTATION = 0,
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					40.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2					140.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3					210.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					330.0f * M_PI / 180.0f
-
-
-/*#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
-#define WHEEL_ANGlE_2s					-(30.0f) *( M_PI / 180.0f)
-#define WHEEL_ANGlE_3s					(30.0f) * (M_PI / 180.0f)
-#define WHEEL_ANGlE_4s					(90.0f+35.0f) * (M_PI / 180.0f)*/
+#define WHEEL_ANGLE_1					60.0f * M_PI / 180.0f
+#define WHEEL_ANGLE_2					130.0f * M_PI / 180.0f
+#define WHEEL_ANGLE_3					230.0f * M_PI / 180.0f
+#define WHEEL_ANGLE_4					300.0f * M_PI / 180.0f
 
 /* Open loop */
 #define MOTOR_NOMINAL_SPEED		(2.0f * M_PI * (5240.0f / 60.0f))	// rpm -> rad/s
@@ -82,7 +77,7 @@ enum {
 #define PID_SAMPLE_TIME				1.0f	// [ms]
 
 //#define SPEED_CNT_RATIO				(WHEEL_GEAR_RATIO * ENCODER_CPR) / ((PID_SAMPLE_TIME * 1000.0f) * 2.0f * M_PI * WHEEL_RADIO) // [m/s] -> [count/(pid_samples * ms)]
-#define SPEED_CNT_RATIO       1 / (WHEEL_RADIO) // [m/s] -> [rad/s]
+#define SPEED_CNT_RATIO       (WHEEL_GEAR_RATIO / WHEEL_RADIO) // [m/s] -> [motor rad/s]
 
 enum {
 	MOTOR_BRAKE_DISABLE = 0,
@@ -106,6 +101,7 @@ typedef struct Motor_Handler
 	PID_Handler_t pid;
 	MAX581x_Handler_t dac;
 	Encoder_Handler_t encoder;
+	LowPassFilter_t lpFilt;
 
 	Motor_GPIO_t enablePin;
 	Motor_GPIO_t dirPin;
@@ -119,6 +115,8 @@ typedef struct Motor_Handler
 	Motor_Status_t enable;
 
 	float ffVoltage;
+	float ffFrictionGain;
+	float ffVelocityGain;
 	float speedDeadband;
 } Motor_Handler_t;
 

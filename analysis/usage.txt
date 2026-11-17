@@ -1,0 +1,56 @@
+=== CSV Analyzer — comandos rápidos ===
+
+Análisis básico:
+  python3 analysis/csv_analyzer.py archivo.csv
+
+Especificar comando:
+  python3 analysis/csv_analyzer.py archivo.csv --cmd v_vel[2]
+
+Todos los escalones:
+  python3 analysis/csv_analyzer.py archivo.csv --all-steps
+
+Sin gráficos:
+  python3 analysis/csv_analyzer.py archivo.csv --no-plot
+
+Comparar dos logs:
+  python3 analysis/csv_analyzer.py log1.csv log2.csv --compare
+
+Exportar a JSON:
+  python3 analysis/csv_analyzer.py archivo.csv --export resultados.json
+
+Combinado:
+  python3 analysis/csv_analyzer.py archivo.csv -c v_vel[2] -a -e res.json -n
+
+Ejemplo VTH:
+  python3 analysis/csv_analyzer.py Vth-40+4.csv --cmd v_vel[2] --all-steps
+
+=== PID Tuner — sugerencia de ganancias ===
+
+CLOSED-LOOP (analiza performance actual + ajuste heurístico):
+  python3 analysis/pid_tuner.py Vth-40+4.csv -c v_vel[2] -m vth_est --current 2.0,6.0,0.0
+
+OPEN-LOOP (extrae FOPDT + ZN/TL/IMC):
+  python3 analysis/pid_tuner.py Vth_openloop.csv -c v_vel[2] -m vth --open-loop
+
+Parámetros FOPDT directos:
+  python3 analysis/pid_tuner.py --plant K=1.5,L=0.02,T=0.15
+
+Exportar a JSON:
+  python3 analysis/pid_tuner.py Vth-40+4.csv -c v_vel[2] -m vth_est --current 2.0,6.0,0.0 -e tune.json
+
+Sin gráficos:
+  python3 analysis/pid_tuner.py Vth-40+4.csv -c v_vel[2] -m vth_est --current 2.0,6.0,0.0 -n
+
+=== Sensor Compare — validación multi-fuente ===
+
+Comparar variable específica:
+  python3 analysis/sensor_compare.py telemetria.csv camara.csv --var vth_est
+
+Comparar múltiples variables:
+  python3 analysis/sensor_compare.py telemetria.csv camara.csv --var vx vy vth
+
+Comparar todas las variables comunes:
+  python3 analysis/sensor_compare.py telemetria.csv camara.csv --all
+
+Exportar a JSON:
+  python3 analysis/sensor_compare.py telemetria.csv camara.csv --var vth --export comp.json

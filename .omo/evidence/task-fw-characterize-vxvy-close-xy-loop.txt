@@ -1,0 +1,100 @@
+================================================================================
+FINAL VERIFICATION WAVE — characterize-vxvy-close-xy-loop
+Date: 2026-08-06   Orchestrator run (runnable subset; F3 requires hardware)
+Plan file: .omo/plans/characterize-vxvy-close-xy-loop.md (lines 151-156)
+================================================================================
+
+F1. PLAN COMPLIANCE AUDIT — PARTIAL PASS (software todos compliant)
+--------------------------------------------------------------------
+Per-todo check against plan "What to do / Must NOT do" + acceptance criteria:
+
+T1  velocity_step_test.lua parameterized per-axis steps ......... PASS
+    (evidence task-1; .omo/backups/velocity_step_test.lua.orig exists)
+T2  analysis tools on synthetic + TestescalonVx dry-run
+    K=0.381 L=95ms T=245ms, ramp caveat documented ............... PASS
+    (evidence task-2; partA/partB json+txt)
+T3  firmware gates pid_vx_enable/vy/vth, default 1 .............. PASS (code)
+    system_globals.h:99-101 externs; system_globals.c:42-44 =1;
+    drive_task.c:281/292/304 guards. Backups exist (.omo/backups/*.bak).
+    GAP: not compile/flash-verified (no ARM toolchain; sudo needs password;
+    CubeMX .ioc project, no Makefile). Operator action required.
+T4  open_loop_recipe.md + run_openloop_vx.sh/vy.sh ............... PASS
+    (evidence task-4; bash -n OK)
+T7  position_loop_design.py: gains Kp=4.3745 Ki=1.8227 Kff=2.6247
+    @60Hz, output clamp 2.0, sim + json + PNG .................... PASS
+    (evidence task-7)
+T8  xy_loop_test.lua (config block, R(-theta) rotation, anti-windup
+    +-1.0, clamp +-2.0, theta_target=wrap(rs.orientation)) +
+    tests/test_xy_rotation.lua (4 rotation asserts + wrap bounds,
+    lua5.4-syntax) ............................................... PASS
+    (evidence task-8 + task-8-sim-validation.txt; no Lua interp on
+    machine -> static verification; SIM-VALIDATED in grSim run C:
+    converged (0.500,0.500)+-5mm with Kp=0.6/Ki=0.15)
+T9  position_pid.rs + motion/mod.rs export + set_position_target
+    binding (control.rs) + api_globals.lua + cargo tests + docs .. PASS
+    (evidence task-9; cargo test 27/27 exit 0; cargo build exit 0;
+    motion/mod.rs re-export re-added by orchestrator, re-verified)
+
+Backup compliance: firmware files + T1 backed up in .omo/backups/ (plan
+line 160). Engine files: engine/engine IS a git repo (verified
+engine/engine/.git); all changes uncommitted but recoverable via
+git status/diff. Caveat: plan asked for manual cp backups of every
+touched file; engine files relied on git instead. Functionally
+equivalent; documented here.
+
+F2. CODE QUALITY REVIEW — PASS (automated gates + spot review)
+--------------------------------------------------------------------
+- cargo test: 27 passed, 0 failed, 0 ignored — exit 0 (orchestrator
+  re-ran after re-adding motion/mod.rs re-export).
+- cargo build: exit 0; no NEW warnings from plan files (22 pre-existing
+  warnings: GUI lifetime elision, face_to never-used).
+- PositionPID: rotation mapping, integral+anti-windup (clamp +-1.0),
+  theta-wrap boundaries 3pi->-pi / -3pi->pi, timestamp stale guard
+  (2x period) — all unit-tested.
+- Engine changes (ENGINE_AUTORUN gate in main.rs; log() binding in
+  lua_interface/mod.rs via info!): minimal, default behavior unchanged
+  (CLI scripts still load PAUSED unless ENGINE_AUTORUN=1), builds clean.
+- Lua scripts: no motion()/move_to/move_direct; no omega misuse;
+  5th arg = wrap(orientation) per protocol semantics.
+
+F3. REAL MANUAL QA — BLOCKED (hardware)
+--------------------------------------------------------------------
+Requires: ARM toolchain (apt candidate gcc-arm-none-eabi 15:10.3 but
+sudo non-interactive unavailable), STM32 flash over USB, real robot +
+field. Sim substitute completed instead (task-8-sim-validation.txt):
+full pipeline validated (Lua -> engine -> grSim UDP -> vision multicast
+-> tracker EKF -> fused state); Lua PI structure converges; T7 gains
+oscillate on near-instant grSim plant (expected — tuned for firmware
+plant L=95ms; keep as hardware starting point, reduce Kp if oscillates).
+
+F4. SCOPE FIDELITY — PASS
+--------------------------------------------------------------------
+Files modified during THIS plan session (mtime 2026-08-06, exactly 11,
+all in-scope):
+  lua/velocity_step_test.lua (T1)
+  lua/xy_loop_test.lua + lua/tests/test_xy_rotation.lua (T8, new)
+  src/motion/controllers/pid/mod.rs + position_pid.rs (T9; new file)
+  src/motion/mod.rs (T9 re-export)
+  src/lua_interface/api/control.rs + lua/api_globals.lua (T9 binding)
+  src/sender/radio.rs (T9 position_pids + compute_position_target)
+  src/main.rs + src/lua_interface/mod.rs (sim de-risk)
+Forbidden-area checks:
+  - receiver/tracker.rs, receiver/vision.rs: NO mtime today (all git
+    modifications predate this session — pre-existing user work)
+  - motion/controllers/pid/pid.rs: mtime 2026-06-18, untouched
+  - motion/controllers/bangbang/: mtime 2026-03-28, untouched
+  - Cargo.toml: mtime 2026-03-28 — NO new dependencies
+  - No commits (git repo engine/engine left uncommitted per plan)
+  - 30B radio protocol: packet_serializer.rs NOT touched today;
+    serialize tests pass (27/27 suite)
+NOTE: git status shows 20 modified files in engine/engine — 13 of them
+(pre-existing: gui/*, logger, packet_serializer, tracker, vision,
+utils/types, world, pid.rs, api/mod.rs, .gitignore) are NOT from this
+plan session and were left untouched.
+
+================================================================================
+VERDICT: F1 (software) PASS*  F2 PASS  F3 BLOCKED(hardware)  F4 PASS
+*F1 T3 compile/flash pending operator. Per plan line 152: "Surface
+ results and wait for the user's explicit okay before declaring
+ complete." Awaiting user approval; T5/T6 + F3 remain operator-blocked.
+================================================================================

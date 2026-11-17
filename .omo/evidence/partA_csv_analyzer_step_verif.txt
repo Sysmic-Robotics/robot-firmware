@@ -1,0 +1,19 @@
+
+======================================================================
+  fixture_engine_vx_step_verif.csv
+  Duration: 2.1s  |  Samples: 130  |  Columns: 11
+  Command col: Vx_Command
+======================================================================
+
+  ── Step 1: 0.0 → 1.0  (1.567s) ──
+    RobotID               gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Team                  gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Vy_Command            gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Angular_Command       gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Pos_X                 gain=0.769   ss=0.769   err=0.231   1.017s   lat=483ms   OS=28.6%   Tp=1.550s   Ts2=1.550s   Ts5=1.550s   ⚠ NOISY
+    Pos_Y                 gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Orientation           gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+    Vx_Actual             gain=0.939   ss=0.939   err=0.061   517ms   lat=333ms   OS=2.0%   Tp=1.350s   Ts2=1.083s   Ts5=883ms
+    Vy_Actual             gain=0.000   ss=0.000   err=1.000   0ms   OS=0.0%   Tp=0ms   Ts2=—   Ts5=—   ⚠ CLIPPED
+
+✓ Metrics exported to /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/partA_csv_analyzer_step_verif.json

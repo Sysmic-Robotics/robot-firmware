@@ -1,0 +1,1699 @@
+# Copyright 2025 mjbots Robotic Systems, LLC.  info@mjbots.com
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import asyncio
+import argparse
+import collections.abc
+import copy
+import enum
+import io
+import math
+import struct
+import time
+
+from . import multiplex as mp
+from . import command as cmd
+from . import fdcanusb
+from . import pythoncan
+from .protocol import Register, Mode, Writer, parse_reply, Result, parse_registers, parse_message, make_uuid_prefix
+from .transport_factory import TRANSPORT_FACTORIES, get_singleton_transport, make_transport_args
+
+import moteus.reader
+
+
+def namedtuple_to_dict(obj):
+    '''Convert a namedtuple recursively into a nested dictionary.
+
+    This function handles namedtuples, dictionaries, and sequences,
+    converting them to nested dictionaries and lists suitable for
+    JSON serialization.
+
+    Args:
+        obj: The object to convert (typically a namedtuple)
+
+    Returns:
+        dict, list, or primitive type representation of the input
+    '''
+
+    if isinstance(obj, tuple) and hasattr(obj, "_fields"):
+        return {field: namedtuple_to_dict(getattr(obj, field)) for field in obj._fields}
+
+    if isinstance(obj, collections.abc.Mapping):
+        return {k: namedtuple_to_dict(v) for k, v in obj.items()}
+
+    if isinstance(obj, collections.abc.Sequence) and not isinstance(obj, (str, bytes, bytearray)):
+        return [namedtuple_to_dict(x) for x in obj]
+
+    return obj
+
+
+def _merge_resolutions(a, b):
+    if a == mp.IGNORE:
+        return b
+    if b == mp.IGNORE:
+        return a
+    return max(a, b)
+
+
+class QueryResolution:
+    """Specify which registers should be requested, and with which
+    resolution, during query operations."""
+
+    mode = mp.INT8
+    position = mp.F32
+    velocity = mp.F32
+    torque = mp.F32
+    q_current = mp.IGNORE
+    d_current = mp.IGNORE
+    abs_position = mp.IGNORE
+    power = mp.IGNORE
+    motor_temperature = mp.IGNORE
+    trajectory_complete = mp.IGNORE
+    rezero_state = mp.IGNORE
+    home_state = mp.IGNORE
+    voltage = mp.INT8
+    temperature = mp.INT8
+    fault = mp.INT8
+
+    aux1_gpio = mp.IGNORE
+    aux2_gpio = mp.IGNORE
+
+    aux1_pwm_input_period_us = mp.IGNORE
+    aux1_pwm_input_duty_cycle = mp.IGNORE
+    aux2_pwm_input_period_us = mp.IGNORE
+    aux2_pwm_input_duty_cycle = mp.IGNORE
+
+    # Additional registers can be queried by enumerating them as keys
+    # in this dictionary, with the resolution as the matching value.
+    _extra: dict = {
+        # 0x020 : mp.F32, ...
+    }
+
+
+class PositionResolution:
+    """Specify what resolutions should be used for each register when
+    sending position mode commands."""
+
+    position = mp.F32
+    velocity = mp.F32
+    feedforward_torque = mp.F32
+    kp_scale = mp.F32
+    kd_scale = mp.F32
+    maximum_torque = mp.F32
+    stop_position = mp.F32
+    watchdog_timeout = mp.F32
+    velocity_limit = mp.F32
+    accel_limit = mp.F32
+    fixed_voltage_override = mp.F32
+    ilimit_scale = mp.F32
+    fixed_current_override = mp.F32
+    ignore_position_bounds = mp.F32
+
+
+class VFOCResolution:
+    theta = mp.F32
+    voltage = mp.F32
+    theta_rate = mp.F32
+
+
+class CurrentResolution:
+    d_A = mp.F32
+    q_A = mp.F32
+
+
+class PwmResolution:
+    aux1_pwm1 = mp.INT16
+    aux1_pwm2 = mp.INT16
+    aux1_pwm3 = mp.INT16
+    aux1_pwm4 = mp.INT16
+    aux1_pwm5 = mp.INT16
+    aux2_pwm1 = mp.INT16
+    aux2_pwm2 = mp.INT16
+    aux2_pwm3 = mp.INT16
+    aux2_pwm4 = mp.INT16
+    aux2_pwm5 = mp.INT16
+
+
+class ZeroVelocityResolution:
+    kd_scale = mp.F32
+
+
+def make_parser(id):
+    return parse_message
+
+
+def parse_diagnostic_message(message, channel):
+    data = message.data
+
+    if len(data) < 3:
+        return None
+
+    if data[0] != mp.STREAM_SERVER_DATA:
+        return None
+
+    msg_channel, offset = mp.read_varuint(1, data)
+    if msg_channel is None or msg_channel != channel:
+        return None
+
+    datalen, offset = mp.read_varuint(offset, data)
+    if datalen is None:
+        return None
+
+    if datalen > (len(data) - offset):
+        return None
+    return data[offset:offset+datalen]
+
+
+class DiagnosticResult:
+    id = None
+    data = b''
+
+    def __repr__(self):
+        return f'{self.id}/{self.data}'
+
+
+def make_diagnostic_parser(channel):
+    def parse(message):
+        result = DiagnosticResult()
+        result.id = (message.arbitration_id >> 8) & 0x7f
+        result.data = parse_diagnostic_message(message, channel)
+        return result
+    return parse
+
+
+def parse_diagnostic_flow_message(message, channel):
+    data = message.data
+
+    if len(data) < 4:
+        return None, None
+
+    if data[0] != mp.STREAM_SERVER_DATA_FLOW:
+        return None, None
+
+    msg_channel, offset = mp.read_varuint(1, data)
+    if msg_channel is None or msg_channel != channel:
+        return None, None
+
+    if offset >= len(data):
+        return None, None
+    packet_number = data[offset]
+    offset += 1
+
+    datalen, offset = mp.read_varuint(offset, data)
+    if datalen is None:
+        return None, None
+
+    if datalen > (len(data) - offset):
+        return None, None
+    return data[offset:offset+datalen], packet_number
+
+
+class DiagnosticFlowResult:
+    def __init__(self):
+        self.id = None
+        self.data = b''
+        self.packet_number = None
+
+    def __repr__(self):
+        return f'{self.id}/{self.packet_number}/{self.data}'
+
+
+def make_diagnostic_flow_parser(channel):
+    def parse(message):
+        result = DiagnosticFlowResult()
+        result.id = (message.arbitration_id >> 8) & 0x7f
+        result.data, result.packet_number = \
+            parse_diagnostic_flow_message(message, channel)
+        return result
+    return parse
+
+
+class Setpoint:
+    """Specifies a setpoint for move_to() with optional parameters.
+
+    This class allows specifying position mode parameters beyond just
+    position when using move_to().
+    """
+
+    def __init__(self, **kwargs):
+        self._kwargs = kwargs
+
+    def _to_make_position_kwargs(self):
+        """Convert to kwargs dict for Controller.make_position()."""
+        return dict(self._kwargs)
+
+
+class FaultError(RuntimeError):
+    def __init__(self, mode, code):
+        super(FaultError, self).__init__(f"Fault mode={mode} code={code}")
+
+
+class Controller:
+    """Operates a single moteus controller across some communication
+    medium.
+
+    Arguments:
+      id: bus ID of the controller or DeviceAddress structure
+      query_resolution: an instance of moteus.QueryResolution
+      position_resolution: an instance of moteus.PositionResolution
+      transport: something modeling moteus.Transport to send commands through
+    """
+
+    def __init__(self, id=1,
+                 query_resolution=QueryResolution(),
+                 position_resolution=PositionResolution(),
+                 vfoc_resolution=VFOCResolution(),
+                 current_resolution=CurrentResolution(),
+                 pwm_resolution=PwmResolution(),
+                 zero_velocity_resolution=ZeroVelocityResolution(),
+                 transport=None,
+                 source_can_id=0,
+                 can_prefix=0x0000):
+        self.id = id
+        self.source_can_id = source_can_id
+        self.query_resolution = query_resolution
+        self.position_resolution = position_resolution
+        self.vfoc_resolution = vfoc_resolution
+        self.current_resolution = current_resolution
+        self.pwm_resolution = pwm_resolution
+        self.zero_velocity_resolution = zero_velocity_resolution
+        self.transport = transport
+        self._parser = make_parser(id)
+        self._can_prefix = can_prefix
+
+        # Pre-compute our query string.
+        self._query_data, self._default_query_reply_size = self._make_query_data()
+        self._make_uuid_prefix_data()
+        self.max_diagnostic_write = 64 - len(self._uuid_prefix_data) - 3
+
+    def _get_transport(self):
+        if self.transport:
+            return self.transport
+
+        # Try to construct a global singleton using some agreed upon
+        # method that is hookable.
+        self.transport = get_singleton_transport()
+        return self.transport
+
+    async def flush_transport(self):
+        try:
+            await asyncio.wait_for(self.transport.read(), 0.02)
+        except asyncio.TimeoutError:
+            pass
+
+    def _make_uuid_prefix_data(self):
+        self._uuid_prefix_data = make_uuid_prefix(self.id)
+
+    def _make_query_data(self, query_resolution=None):
+        if query_resolution is None:
+            query_resolution = self.query_resolution
+
+        expected_reply_size = 0
+
+        buf = io.BytesIO()
+        writer = Writer(buf)
+        qr = query_resolution
+        c1 = mp.WriteCombiner(writer, 0x10, int(Register.MODE), [
+            qr.mode,
+            qr.position,
+            qr.velocity,
+            qr.torque,
+            qr.q_current,
+            qr.d_current,
+            qr.abs_position,
+            qr.power,
+            ])
+        for i in range(c1.size()):
+            c1.maybe_write()
+
+        expected_reply_size += c1.reply_size
+
+        c2 = mp.WriteCombiner(writer, 0x10, int(Register.MOTOR_TEMPERATURE), [
+            qr.motor_temperature,
+            qr.trajectory_complete,
+            _merge_resolutions(qr.rezero_state, qr.home_state),
+            qr.voltage,
+            qr.temperature,
+            qr.fault,
+        ])
+        for i in range(c2.size()):
+            c2.maybe_write()
+
+        expected_reply_size += c2.reply_size
+
+        c3 = mp.WriteCombiner(writer, 0x10, int(Register.AUX1_GPIO_STATUS), [
+            qr.aux1_gpio,
+            qr.aux2_gpio,
+        ])
+        for i in range(c3.size()):
+            c3.maybe_write()
+
+        expected_reply_size += c3.reply_size
+
+        c4 = mp.WriteCombiner(writer, 0x10, int(Register.AUX1_PWM_INPUT_PERIOD), [
+            qr.aux1_pwm_input_period_us,
+            qr.aux1_pwm_input_duty_cycle,
+            qr.aux2_pwm_input_period_us,
+            qr.aux2_pwm_input_duty_cycle,
+        ])
+        for i in range(c4.size()):
+            c4.maybe_write()
+
+        expected_reply_size += c4.reply_size
+
+        if len(qr._extra):
+            min_val = int(min(qr._extra.keys()))
+            max_val = int(max(qr._extra.keys()))
+            c5 = mp.WriteCombiner(
+                writer, 0x10, min_val,
+                [qr._extra.get(i, mp.IGNORE)
+                 for i in range(min_val, max_val +1)])
+            for _ in range(c5.size()):
+                c5.maybe_write()
+            expected_reply_size += c5.reply_size
+
+        return buf.getvalue(), expected_reply_size
+
+    def _format_query(self, query, query_override, data_buf, result):
+        def expect_reply(frame):
+            # For a reply to these requests, the first byte should be
+            # one of the reply or error frames.
+            if len(frame.data) < 1:
+                return False
+
+            if frame.data[0] & 0xf0 == 0x20 or frame.data[0] == 0x31:
+                return True
+
+            return False
+
+        if query_override is not None:
+            query_data, expected_reply_size = \
+                self._make_query_data(query_override)
+            data_buf.write(query_data)
+            result.expected_reply_size = expected_reply_size
+            result.reply_filter = expect_reply
+        elif query:
+            data_buf.write(self._query_data)
+            result.expected_reply_size = self._default_query_reply_size
+            result.reply_filter = expect_reply
+
+    def _make_command(self, *, query, query_override=None):
+        result = cmd.Command()
+
+        result.destination = self.id
+
+        if not isinstance(self.id, int):
+            result.channel = self.id.transport_device
+            if self.id.can_id is None:
+                result.data = self._uuid_prefix_data
+
+        result.source = self.source_can_id
+        result.reply_required = query or (query_override is not None)
+        result.parse = self._parser
+        result.can_prefix = self._can_prefix
+        result.expected_reply_size = self._default_query_reply_size if query else 0
+
+        # Create and properly position BytesIO for data construction
+        data_buf = io.BytesIO(result.data if result.data else b'')
+        data_buf.seek(0, io.SEEK_END)
+
+        return result, data_buf
+
+    def make_query(self, query_override=None):
+        result, _ = self._make_command(
+            query=True, query_override=query_override)
+        if query_override:
+            result.data, result.expected_reply_size = \
+                self._make_query_data(query_override)
+        else:
+            result.data = self._query_data
+            result.expected_reply_size = self._default_query_reply_size
+
+        def expect_reply(frame):
+            if len(frame.data) < 1:
+                return False
+
+            if frame.data[0] & 0xf0 == 0x20 or frame.data[0] == 0x31:
+                return True
+
+            return False
+
+        result.reply_filter = expect_reply
+        return result
+
+    async def query(self, **kwargs):
+        return await self.execute(self.make_query(**kwargs))
+
+    def make_custom_query(self, to_query_fields):
+        """Return a moteus.Command structure with data required to query the
+        registers given by the 'to_query_fields' dictionary of
+        registers to resolutions.
+        """
+
+        result, data_buf = self._make_command(query=True)
+
+        writer = Writer(data_buf)
+
+        min_val = int(min(to_query_fields.keys()))
+        max_val = int(max(to_query_fields.keys()))
+        c = mp.WriteCombiner(writer, 0x10, min_val,
+                             [to_query_fields.get(i, mp.IGNORE)
+                              for i in range(min_val, max_val + 1)])
+        for _ in range(min_val, max_val + 1):
+            c.maybe_write()
+
+        result.data = data_buf.getvalue()
+        result.expected_reply_size = c.reply_size
+
+        def expect_reply(frame):
+            if len(frame.data) < 1:
+                return False
+
+            if frame.data[0] & 0xf0 == 0x20 or frame.data[0] == 0x31:
+                return True
+
+            return False
+
+        result.reply_filter = expect_reply
+        return result
+
+    async def custom_query(self, *args, **kwargs):
+        return await self.execute(self.make_custom_query(*args, **kwargs))
+
+    def make_stop(self, *, query=False, query_override=None):
+        """Return a moteus.Command structure with data necessary to send a
+        stop mode command."""
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.STOPPED))
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_stop(self, *args, **kwargs):
+        return await self.execute(self.make_stop(**kwargs))
+
+    def make_zero_velocity(self,
+                           *,
+                           kd_scale=None,
+                           query=False,
+                           query_override=None):
+        """Return a moteus.Command structure with data necessary to send a
+        zero velocity mode command."""
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        zr = self.zero_velocity_resolution
+        resolutions = [
+            zr.kd_scale if kd_scale is not None else mp.IGNORE,
+        ]
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.ZERO_VELOCITY))
+
+        # Only write kd_scale if it's not None
+        if kd_scale is not None:
+            combiner = mp.WriteCombiner(
+                writer, 0x00, int(Register.COMMAND_KD_SCALE), resolutions)
+
+            if combiner.maybe_write():
+                writer.write_pwm(kd_scale, zr.kd_scale)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_zero_velocity(self, *args, **kwargs):
+        return await self.execute(self.make_zero_velocity(**kwargs))
+
+    def make_set_output(self, *args,
+                        position=0.0,
+                        query=False,
+                        query_override=None,
+                        cmd=None
+    ):
+        """Return a moteus.Command structure with data necessary to send a
+        set output nearest command."""
+
+        if len(args):
+            raise ValueError(f'unexpected positional arguments: {args}')
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_F32 | 0x01)
+        writer.write_varuint(cmd)
+        writer.write_f32(position)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+        return result
+
+    def make_set_output_nearest(self, *args,
+                                position=0.0,
+                                query=False,
+                                query_override=None):
+        return self.make_set_output(
+            *args,
+            position=position, query=query, query_override=query_override,
+            cmd=Register.SET_OUTPUT_NEAREST)
+
+    def make_set_output_exact(self, *args,
+                              position=0.0,
+                              query=False,
+                              query_override=None):
+        return self.make_set_output(
+            *args,
+            position=position, query=query, query_override=query_override,
+            cmd=Register.SET_OUTPUT_EXACT)
+
+    async def set_output(self, *args, cmd=None, **kwargs):
+        return await self.execute(self.make_set_output(*args, **kwargs, cmd=cmd))
+
+    async def set_output_nearest(self, *args, **kwargs):
+        return await self.set_output(*args, cmd=Register.SET_OUTPUT_NEAREST, **kwargs)
+
+    async def set_output_exact(self, *args, **kwargs):
+        return await self.set_output(*args, cmd=Register.SET_OUTPUT_EXACT, **kwargs)
+
+
+    # For backwards compatibility, "*_output_nearest" used to be named
+    # "make/set_rezero".
+    def make_rezero(self, *args,
+                    rezero=0.0,
+                    query=False,
+                    query_override=None):
+        return self.make_set_output(
+            *args,
+            position=rezero, query=query, query_override=query_override,
+            cmd=Register.SET_OUTPUT_NEAREST)
+
+    async def set_rezero(self, *args, **kwargs):
+        return await self.execute(self.make_rezero(**kwargs))
+
+    def make_require_reindex(self,
+                             query=False,
+                             query_override=None):
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_varuint(Register.REQUIRE_REINDEX)
+        writer.write_int8(1)
+
+        result.data = data_buf.getvalue()
+        return result
+
+    async def set_require_reindex(self, query=False, query_override=None):
+        return await self.execute(self.make_require_reindex(
+            query=query, query_override=query_override))
+
+    def make_recapture_position_velocity(self,
+                                         query=False,
+                                         query_override=None):
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_varuint(Register.RECAPTURE_POSITION_VELOCITY)
+        writer.write_int8(1)
+
+        result.data = data_buf.getvalue()
+        return result
+
+    async def set_recapture_position_velocity(self,
+                                              query=False,
+                                              query_override=None):
+        return await self.execute(self.make_recapture_position_velocity(
+            query=query, query_override=query_override))
+
+    def make_position(self,
+                      *,
+                      position=None,
+                      velocity=None,
+                      feedforward_torque=None,
+                      kp_scale=None,
+                      kd_scale=None,
+                      maximum_torque=None,
+                      stop_position=None,
+                      watchdog_timeout=None,
+                      velocity_limit=None,
+                      accel_limit=None,
+                      fixed_voltage_override=None,
+                      ilimit_scale=None,
+                      fixed_current_override=None,
+                      ignore_position_bounds=None,
+                      query=False,
+                      query_override=None):
+        """Return a moteus.Command structure with data necessary to send a
+        position mode command with the given values."""
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        pr = self.position_resolution
+        resolutions = [
+            pr.position if position is not None else mp.IGNORE,
+            pr.velocity if velocity is not None else mp.IGNORE,
+            pr.feedforward_torque if feedforward_torque is not None else mp.IGNORE,
+            pr.kp_scale if kp_scale is not None else mp.IGNORE,
+            pr.kd_scale if kd_scale is not None else mp.IGNORE,
+            pr.maximum_torque if maximum_torque is not None else mp.IGNORE,
+            pr.stop_position if stop_position is not None else mp.IGNORE,
+            pr.watchdog_timeout if watchdog_timeout is not None else mp.IGNORE,
+            pr.velocity_limit if velocity_limit is not None else mp.IGNORE,
+            pr.accel_limit if accel_limit is not None else mp.IGNORE,
+            pr.fixed_voltage_override if fixed_voltage_override is not None else mp.IGNORE,
+            pr.ilimit_scale if ilimit_scale is not None else mp.IGNORE,
+            pr.fixed_current_override if fixed_current_override is not None else mp.IGNORE,
+            pr.ignore_position_bounds if ignore_position_bounds is not None else mp.IGNORE,
+        ]
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.POSITION))
+
+        combiner = mp.WriteCombiner(
+            writer, 0x00, int(Register.COMMAND_POSITION), resolutions)
+
+        if combiner.maybe_write():
+            writer.write_position(position, pr.position)
+        if combiner.maybe_write():
+            writer.write_velocity(velocity, pr.velocity)
+        if combiner.maybe_write():
+            writer.write_torque(feedforward_torque, pr.feedforward_torque)
+        if combiner.maybe_write():
+            writer.write_pwm(kp_scale, pr.kp_scale)
+        if combiner.maybe_write():
+            writer.write_pwm(kd_scale, pr.kd_scale)
+        if combiner.maybe_write():
+            writer.write_torque(maximum_torque, pr.maximum_torque)
+        if combiner.maybe_write():
+            writer.write_position(stop_position, pr.stop_position)
+        if combiner.maybe_write():
+            writer.write_time(watchdog_timeout, pr.watchdog_timeout)
+        if combiner.maybe_write():
+            writer.write_velocity(velocity_limit, pr.velocity_limit)
+        if combiner.maybe_write():
+            writer.write_accel(accel_limit, pr.accel_limit)
+        if combiner.maybe_write():
+            writer.write_voltage(fixed_voltage_override, pr.fixed_voltage_override)
+        if combiner.maybe_write():
+            writer.write_pwm(ilimit_scale, pr.ilimit_scale)
+        if combiner.maybe_write():
+            writer.write_current(fixed_current_override, pr.fixed_current_override)
+        if combiner.maybe_write():
+            writer.write_int(ignore_position_bounds, pr.ignore_position_bounds)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_position(self, *args, **kwargs):
+        return await self.execute(self.make_position(**kwargs))
+
+    async def set_position_wait_complete(
+            self,
+            period_s=0.025,
+            query_override=None,
+            *args, **kwargs):
+        """Repeatedly send a position mode command to a device until it
+        reports that the trajectory has been completed.
+
+        If the controller is unresponsive, this method will never return.
+
+        If the controller reports a fault or position mode timeout, a
+        FaultError exception will be raised.
+        """
+
+        if query_override is None:
+            query_override = copy.deepcopy(self.query_resolution)
+        else:
+            query_override = copy.deepcopy(query_override)
+
+        if query_override.mode == mp.IGNORE:
+            query_override.mode = mp.INT8
+        if query_override.fault == mp.IGNORE:
+            query_override.fault = mp.INT8
+        query_override.trajectory_complete = mp.INT8
+
+        count = 2
+        while True:
+            result = await self.set_position(
+                query_override=query_override, *args, **kwargs)
+
+            if result is not None:
+                count = max(count - 1, 0)
+
+            if (count == 0 and
+                result is not None and
+                result.values[Register.TRAJECTORY_COMPLETE]):
+                return result
+
+            current_mode = result.values.get(Register.MODE, Mode.STOPPED)
+            fault_code = result.values.get(Register.FAULT, 0)
+
+            if current_mode == Mode.FAULT or current_mode == Mode.TIMEOUT:
+                raise FaultError(current_mode, fault_code)
+
+            await asyncio.sleep(period_s)
+
+    def make_vfoc(self,
+                  *,
+                  theta,
+                  voltage,
+                  theta_rate=0.0,
+                  query=False,
+                  query_override=None):
+        """Return a moteus.Command structure with data necessary to send a
+        voltage mode FOC command."""
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+        cr = self.vfoc_resolution
+        resolutions = [
+            cr.theta if theta is not None else mp.IGNORE,
+            cr.voltage if voltage is not None else mp.IGNORE,
+            mp.IGNORE,
+            mp.IGNORE,
+            mp.IGNORE,
+            mp.IGNORE,
+            cr.theta_rate if (theta_rate != 0.0 and theta_rate is not None) else mp.IGNORE,
+        ]
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.VOLTAGE_FOC))
+
+        combiner = mp.WriteCombiner(
+            writer, 0x00, int(Register.VFOC_THETA), resolutions)
+
+        if combiner.maybe_write():
+            writer.write_pwm(theta / math.pi, cr.theta)
+        if combiner.maybe_write():
+            writer.write_voltage(voltage, cr.voltage)
+        if combiner.maybe_write():
+            assert False
+        if combiner.maybe_write():
+            assert False
+        if combiner.maybe_write():
+            assert False
+        if combiner.maybe_write():
+            assert False
+        if combiner.maybe_write():
+            writer.write_velocity(theta_rate / math.pi, cr.theta_rate)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_vfoc(self, *args, **kwargs):
+        return await self.execute(self.make_vfoc(**kwargs))
+
+    def make_current(self,
+                     *,
+                     d_A,
+                     q_A,
+                     query=False,
+                     query_override=None):
+        """Return a moteus.Command structure with data necessary to send a
+        current mode command.
+        """
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+        cr = self.current_resolution
+        # Match the on-the-wire register order: COMMAND_Q_CURRENT
+        # (0x1c) then COMMAND_D_CURRENT (0x1d).  See the comment
+        # below: Q comes first.
+        resolutions = [
+            cr.q_A if q_A is not None else mp.IGNORE,
+            cr.d_A if d_A is not None else mp.IGNORE,
+        ]
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.CURRENT))
+
+        # Yes, annoyingly the register mapping as of version 4 still
+        # has the Q current first in this grouping, unlike everywhere
+        # else where D current is first.
+        combiner = mp.WriteCombiner(
+            writer, 0x00, int(Register.COMMAND_Q_CURRENT), resolutions)
+
+        if combiner.maybe_write():
+            writer.write_current(q_A, cr.q_A)
+        if combiner.maybe_write():
+            writer.write_current(d_A, cr.d_A)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_current(self, *args, **kwargs):
+        return await self.execute(self.make_current(**kwargs))
+
+    def make_stay_within(
+            self,
+            *,
+            lower_bound=None,
+            upper_bound=None,
+            feedforward_torque=None,
+            kp_scale=None,
+            kd_scale=None,
+            maximum_torque=None,
+            stop_position=None,
+            watchdog_timeout=None,
+            ilimit_scale=None,
+            ignore_position_bounds=None,
+            query=False,
+            query_override=None):
+        """Return a moteus.Command structure with data necessary to send a
+        within mode command with the given values."""
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        pr = self.position_resolution
+        resolutions = [
+            pr.position if lower_bound is not None else mp.IGNORE,
+            pr.position if upper_bound is not None else mp.IGNORE,
+            pr.feedforward_torque if feedforward_torque is not None else mp.IGNORE,
+            pr.kp_scale if kp_scale is not None else mp.IGNORE,
+            pr.kd_scale if kd_scale is not None else mp.IGNORE,
+            pr.maximum_torque if maximum_torque is not None else mp.IGNORE,
+            pr.watchdog_timeout if watchdog_timeout is not None else mp.IGNORE,
+            pr.ilimit_scale if ilimit_scale is not None else mp.IGNORE,
+            pr.ignore_position_bounds if ignore_position_bounds is not None else mp.IGNORE,
+        ]
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.STAY_WITHIN))
+
+        combiner = mp.WriteCombiner(
+            writer, 0x00, int(Register.COMMAND_WITHIN_LOWER_BOUND),
+            resolutions)
+
+        if combiner.maybe_write():
+            writer.write_position(lower_bound, pr.position)
+        if combiner.maybe_write():
+            writer.write_position(upper_bound, pr.position)
+        if combiner.maybe_write():
+            writer.write_torque(feedforward_torque, pr.feedforward_torque)
+        if combiner.maybe_write():
+            writer.write_pwm(kp_scale, pr.kp_scale)
+        if combiner.maybe_write():
+            writer.write_pwm(kd_scale, pr.kd_scale)
+        if combiner.maybe_write():
+            writer.write_torque(maximum_torque, pr.maximum_torque)
+        if combiner.maybe_write():
+            writer.write_time(watchdog_timeout, pr.watchdog_timeout)
+        if combiner.maybe_write():
+            writer.write_pwm(ilimit_scale, pr.ilimit_scale)
+        if combiner.maybe_write():
+            writer.write_int(ignore_position_bounds, pr.ignore_position_bounds)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_stay_within(self, *args, **kwargs):
+        return await self.execute(self.make_stay_within(**kwargs))
+
+    def make_brake(self, *, query=False, query_override=None):
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT8 | 0x01)
+        writer.write_int8(int(Register.MODE))
+        writer.write_int8(int(Mode.BRAKE))
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_brake(self, *args, **kwargs):
+        return await self.execute(self.make_brake(**kwargs))
+
+    def make_write_gpio(self, aux1=None, aux2=None,
+                        query=False, query_override=None):
+        """Return a moteus.Command structure with data necessary to set one or
+        more GPIO registers.
+
+        aux1/aux2 are an optional integer bitfield, where the least
+        significant bit is pin 0 on the respective port.
+        """
+
+        result, data_buf = self._make_command(
+            query=query, query_override=query_override)
+
+        writer = Writer(data_buf)
+
+        combiner = mp.WriteCombiner(
+            writer, 0x00, int(Register.AUX1_GPIO_COMMAND), [
+                mp.INT8 if aux1 is not None else mp.IGNORE,
+                mp.INT8 if aux2 is not None else mp.IGNORE,
+        ])
+
+        if combiner.maybe_write():
+            writer.write_int8(aux1)
+        if combiner.maybe_write():
+            writer.write_int8(aux2)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+        return result
+
+    async def set_write_gpio(self, *args, **kwargs):
+        return await self.execute(self.make_write_gpio(**kwargs))
+
+    def make_read_gpio(self):
+        """Return a moteus.Command structure with data necessary to read all
+        GPIO digital inputs."""
+
+        result, data_buf = self._make_command(query=True)
+        writer = Writer(data_buf)
+
+        combiner = mp.WriteCombiner(
+            writer, 0x10, int(Register.AUX1_GPIO_STATUS), [
+                mp.INT8,
+                mp.INT8,
+        ])
+
+        for i in range(2):
+            combiner.maybe_write()
+
+        result.data = data_buf.getvalue()
+        return result
+
+    async def read_gpio(self):
+        """Return a bytes() object with an int8 for each auxiliary port.  The
+        pins for each port are represented as bits, with the least significant
+        bit being pin 0.
+
+        None can be returned if no response is received.
+        """
+
+        results = await self._get_transport().cycle([self.make_read_gpio()])
+        if len(results) == 0:
+            return None
+        result = results[0]
+        return bytes([result.values[Register.AUX1_GPIO_STATUS],
+                      result.values[Register.AUX2_GPIO_STATUS]])
+
+    def make_diagnostic_write(self, data, channel=1):
+        result, data_buf = self._make_command(query=False)
+
+        # CAN-FD frames can be at most 64 bytes long
+        assert len(data) <= 61
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.STREAM_CLIENT_DATA)
+        writer.write_int8(channel)  # channel
+        writer.write_int8(len(data))
+        data_buf.write(data)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def send_diagnostic_write(self, *args, **kwargs):
+        await self._get_transport().cycle([self.make_diagnostic_write(**kwargs)])
+
+    def make_diagnostic_read(self, max_length=48, channel=1):
+        result, data_buf = self._make_command(query=True)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.STREAM_CLIENT_POLL)
+        writer.write_int8(channel)
+        writer.write_int8(max_length)
+
+        result.parse = make_diagnostic_parser(channel)
+
+        result.data = data_buf.getvalue()
+        result.expected_reply_size = 3 + max_length
+
+        def expect_diagnostic_response(frame):
+            if len(frame.data) < 3:
+                return False
+
+            return frame.data[0] == 0x41
+
+        result.reply_filter = expect_diagnostic_response
+
+        return result
+
+    async def diagnostic_read(self, *args, **kwargs):
+        return await self._get_transport().cycle(
+            [self.make_diagnostic_read(**kwargs)])
+
+    def make_diagnostic_read_flow(self, packet_number=0,
+                                  max_length=48, channel=1):
+        result, data_buf = self._make_command(query=True)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.STREAM_CLIENT_POLL_FLOW)
+        writer.write_int8(channel)
+        # packet_number is uint8 on the wire (0-255), but write_int8
+        # requires signed range.  Convert to signed for packing.
+        writer.write_int8(packet_number if packet_number < 128
+                          else packet_number - 256)
+        writer.write_int8(max_length)
+
+        result.parse = make_diagnostic_flow_parser(channel)
+
+        result.data = data_buf.getvalue()
+        result.expected_reply_size = 4 + max_length
+
+        def expect_diagnostic_flow_response(frame):
+            if len(frame.data) < 4:
+                return False
+
+            return frame.data[0] == mp.STREAM_SERVER_DATA_FLOW
+
+        result.reply_filter = expect_diagnostic_flow_response
+
+        return result
+
+    async def diagnostic_read_flow(self, *args, **kwargs):
+        return await self._get_transport().cycle(
+            [self.make_diagnostic_read_flow(**kwargs)])
+
+    def make_set_trim(self, *, trim=0):
+        result, data_buf = self._make_command(query=False)
+
+        writer = Writer(data_buf)
+        writer.write_int8(mp.WRITE_INT32 | 0x01)
+        writer.write_varuint(Register.CLOCK_TRIM)
+        writer.write_int32(trim)
+
+        result.data = data_buf.getvalue()
+        return result
+
+    async def set_trim(self, *args, **kwargs):
+        return await self.execute(self.make_set_trim(*args, **kwargs))
+
+    def make_aux_pwm(self, *,
+                     aux1_pwm1=None,
+                     aux1_pwm2=None,
+                     aux1_pwm3=None,
+                     aux1_pwm4=None,
+                     aux1_pwm5=None,
+                     aux2_pwm1=None,
+                     aux2_pwm2=None,
+                     aux2_pwm3=None,
+                     aux2_pwm4=None,
+                     aux2_pwm5=None,
+                     query=False,
+                     query_override=None):
+        result, data_buf = self._make_command(query=query, query_override=query_override)
+
+        pr = self.pwm_resolution
+        resolutions = [
+            pr.aux1_pwm1 if aux1_pwm1 is not None else mp.IGNORE,
+            pr.aux1_pwm2 if aux1_pwm2 is not None else mp.IGNORE,
+            pr.aux1_pwm3 if aux1_pwm3 is not None else mp.IGNORE,
+            pr.aux1_pwm4 if aux1_pwm4 is not None else mp.IGNORE,
+            pr.aux1_pwm5 if aux1_pwm5 is not None else mp.IGNORE,
+            pr.aux2_pwm1 if aux2_pwm1 is not None else mp.IGNORE,
+            pr.aux2_pwm2 if aux2_pwm2 is not None else mp.IGNORE,
+            pr.aux2_pwm3 if aux2_pwm3 is not None else mp.IGNORE,
+            pr.aux2_pwm4 if aux2_pwm4 is not None else mp.IGNORE,
+            pr.aux2_pwm5 if aux2_pwm5 is not None else mp.IGNORE,
+        ]
+
+        writer = Writer(data_buf)
+        combiner = mp.WriteCombiner(
+            writer, 0x00, int(Register.AUX1_PWM1), resolutions)
+
+        if combiner.maybe_write():
+            writer.write_pwm(aux1_pwm1, pr.aux1_pwm1)
+        if combiner.maybe_write():
+            writer.write_pwm(aux1_pwm2, pr.aux1_pwm2)
+        if combiner.maybe_write():
+            writer.write_pwm(aux1_pwm3, pr.aux1_pwm3)
+        if combiner.maybe_write():
+            writer.write_pwm(aux1_pwm4, pr.aux1_pwm4)
+        if combiner.maybe_write():
+            writer.write_pwm(aux1_pwm5, pr.aux1_pwm5)
+        if combiner.maybe_write():
+            writer.write_pwm(aux2_pwm1, pr.aux2_pwm1)
+        if combiner.maybe_write():
+            writer.write_pwm(aux2_pwm2, pr.aux2_pwm2)
+        if combiner.maybe_write():
+            writer.write_pwm(aux2_pwm3, pr.aux2_pwm3)
+        if combiner.maybe_write():
+            writer.write_pwm(aux2_pwm4, pr.aux2_pwm4)
+        if combiner.maybe_write():
+            writer.write_pwm(aux2_pwm5, pr.aux2_pwm5)
+
+        self._format_query(query, query_override, data_buf, result)
+
+        result.data = data_buf.getvalue()
+
+        return result
+
+    async def set_aux_pwm(self, *args, **kwargs):
+        return await self.execute(self.make_aux_pwm(*args, **kwargs))
+
+    def _extract(self, value):
+        if len(value):
+            return value[0]
+        return None
+
+    async def execute(self, command):
+        return self._extract(await self._get_transport().cycle([command]))
+
+
+class CommandError(RuntimeError):
+    def __init__(self, message):
+        super(CommandError, self).__init__("Error response:" + message)
+        self.message = message
+
+
+class Stream:
+    """Presents a python file-like interface to the diagnostic stream of a
+    moteus controller.
+
+    Arguments:
+      controller: moteus.Controller instance
+      channel: diagnostic channel to use
+      verbose: if True, all communication written to stdout
+      use_flow_control: if True, use flow control protocol for reliable delivery.
+                       If None, auto-detect based on transport type.
+    """
+
+    def __init__(self, controller, verbose=False, channel=1,
+                 use_flow_control=None):
+        self.controller = controller
+        self.verbose = verbose
+        self.channel = channel
+
+        # Flow control state
+        self._use_flow_control = use_flow_control
+        self._last_ack_packet = 0
+        self._flow_control_probed = False
+
+        self.lock = asyncio.Lock()
+        self._read_data = b''
+        self._write_data = b''
+
+        self._readers = {}
+        self._maxlen = controller.max_diagnostic_write
+
+    def write(self, data):
+        self._write_data += data
+
+    async def drain(self):
+        while len(self._write_data):
+            to_write, self._write_data = self._write_data[0:self._maxlen], self._write_data[self._maxlen:]
+
+            async with self.lock:
+                await self.controller.send_diagnostic_write(
+                    data=to_write, channel=self.channel)
+
+    async def _read_with_flow_control(self, bytes_to_request):
+        """Read using flow control protocol with acknowledgments."""
+        these_results = await self.controller.diagnostic_read_flow(
+            packet_number=self._last_ack_packet,
+            max_length=bytes_to_request,
+            channel=self.channel)
+
+        this_data = b''
+        for result in these_results:
+            if result.packet_number is not None:
+                # Always advance the ack even if data is empty,
+                # otherwise the controller won't send new data.
+                self._last_ack_packet = result.packet_number
+                if result.data:
+                    this_data += result.data
+
+        return this_data
+
+    async def _read_without_flow_control(self, bytes_to_request):
+        """Read using standard diagnostic protocol."""
+        these_results = await self.controller.diagnostic_read(
+            max_length=bytes_to_request, channel=self.channel)
+        return b''.join(x.data for x in these_results if x.data)
+
+    async def _probe_flow_control(self):
+        """Probe firmware for flow control support.
+
+        Returns True if flow control is supported, False otherwise.
+
+        """
+        try:
+            results = await asyncio.wait_for(
+                self.controller.diagnostic_read_flow(
+                    packet_number=0,
+                    max_length=1,
+                    channel=self.channel),
+                timeout=0.5)
+            for result in results:
+                if result.packet_number is not None:
+                    self._last_ack_packet = result.packet_number
+                    # Preserve any data the probe consumed so it
+                    # isn't lost from the diagnostic stream.
+                    if result.data:
+                        self._read_data += result.data
+                    return True
+            return False
+        except asyncio.TimeoutError:
+            return False
+
+    async def _do_diagnostic_read(self, bytes_to_request):
+        """Perform a diagnostic read, using flow control if enabled."""
+        # Probe for flow control support on first use if not explicitly set
+        if self._use_flow_control is None and not self._flow_control_probed:
+            self._use_flow_control = await self._probe_flow_control()
+            self._flow_control_probed = True
+
+        if self._use_flow_control:
+            return await self._read_with_flow_control(bytes_to_request)
+        else:
+            return await self._read_without_flow_control(bytes_to_request)
+
+    async def read(self, size, block=True):
+        while ((block == True and len(self._read_data) < size)
+               or len(self._read_data) == 0):
+            bytes_to_request = min(self._maxlen, size - len(self._read_data))
+
+            async with self.lock:
+                this_data = await self._do_diagnostic_read(bytes_to_request)
+
+            self._read_data += this_data
+
+            if len(this_data) == 0:
+                # Wait a bit before asking again.
+                await asyncio.sleep(0.01)
+
+        to_return, self._read_data = self._read_data[0:size], self._read_data[size:]
+        return to_return
+
+    async def flush_read(self, timeout=0.2):
+        self._read_data = b''
+
+        # Use _read_without_flow_control directly to avoid triggering
+        # the flow control probe.  flush_read just needs to drain
+        # stale data using regular 0x42 polls.
+        async def _flush_loop():
+            while True:
+                async with self.lock:
+                    this_data = await self._read_without_flow_control(
+                        self._maxlen)
+                if len(this_data) == 0:
+                    await asyncio.sleep(0.01)
+
+        try:
+            await asyncio.wait_for(_flush_loop(), timeout)
+            raise RuntimeError("More data to flush than expected")
+        except asyncio.TimeoutError:
+            # This is the expected path.
+            pass
+
+        self._read_data = b''
+
+        # Now flush anything from the underlying transport if applicable.
+        await self.controller.flush_transport()
+
+    async def _read_maybe_empty_line(self):
+        while b'\n' not in self._read_data and b'\r' not in self._read_data:
+            async with self.lock:
+                this_data = await self._do_diagnostic_read(61)
+
+            self._read_data += this_data
+
+            if len(this_data) == 0:
+                await asyncio.sleep(0.01)
+
+        first_newline = min((self._read_data.find(c) for c in b'\r\n'
+                             if c in self._read_data), default=None)
+        to_return, self._read_data = (
+            self._read_data[0:first_newline+1],
+            self._read_data[first_newline+1:])
+        return to_return
+
+    async def readline(self):
+        while True:
+            line = (await self._read_maybe_empty_line()).rstrip()
+            if len(line) > 0:
+                if self.verbose:
+                    print(f"< {line}")
+                return line
+
+    async def read_until_OK(self):
+        result = b''
+        while True:
+            line = await self.readline()
+            if line.startswith(b'OK'):
+                return result
+            if line.startswith(b'ERR'):
+                raise CommandError(line.decode('latin1'))
+            result += (line + b'\n')
+
+    async def command(self, data, allow_any_response=False):
+        await self.write_message(data)
+
+        if allow_any_response:
+            result = await self.readline()
+        else:
+            result = await self.read_until_OK()
+        return result
+
+    async def write_message(self, data):
+        if self.verbose:
+            print(f"> {data}")
+
+        self.write(data + b'\n')
+        await self.drain()
+
+    async def read_binary_blob(self):
+        size_bytes = await self.read(5, block=True)
+        if size_bytes[0] != 0x0a:
+            raise RuntimeError("missing newline before blob")
+        size, = struct.unpack('<I', size_bytes[1:])
+        return await self.read(size, block=True)
+
+    async def read_data(self, name):
+        if name not in self._readers:
+            await self.write_message(f"tel schema {name}".encode('latin1'))
+
+            maybe_schema_announce = await self.readline()
+            if maybe_schema_announce != f"schema {name}".encode('latin1'):
+                raise RuntimeError(
+                    f"Unexpected schema announce for '{name}' " +
+                    f": '{maybe_schema_announce}'")
+
+            schema = await self.read_binary_blob()
+            self._readers[name] = moteus.reader.Type.from_binary(io.BytesIO(schema))
+
+            # Set this to be emitted as binary
+            await self.command(f"tel fmt {name} 0".encode('latin1'))
+
+        reader = self._readers[name]
+        await self.write_message(f"tel get {name}".encode('latin1'))
+        maybe_data_announce = await self.readline()
+
+        if maybe_data_announce != f"emit {name}".encode('latin1'):
+            raise RuntimeError(
+                f"Invalid data announce for '{name}' : " +
+                f"'{maybe_data_announce}'")
+
+        data = await self.read_binary_blob()
+        return reader.read(moteus.reader.Stream(io.BytesIO(data)))
+
+
+def _normalize_setpoint(setpoint_spec):
+    """Normalize a setpoint specification to (position, kwargs_dict).
+
+    Args:
+        setpoint_spec: Either a number (position), math.nan, or a Setpoint object
+
+    Returns:
+        Tuple of (position, kwargs_dict) where kwargs_dict contains any
+        additional make_position arguments from a Setpoint object.
+    """
+    if isinstance(setpoint_spec, Setpoint):
+        kwargs = setpoint_spec._to_make_position_kwargs()
+
+        # NOTE: In the register protocol, and the regular python API,
+        # omitting position is the same as setting a position of 0.0.
+        # That is unlikely to make sense here (or really there
+        # either).  For now, just error if it is omitted here.
+        position = kwargs.pop('position', None)
+        if position is None:
+            raise RuntimeError('Setpoint() must specify position')
+        return (position, kwargs)
+    else:
+        # Plain number (or nan)
+        return (setpoint_spec, {})
+
+
+async def move_to(
+        setpoints,
+        *,
+        position=None,
+        transport=None,
+        duration=None,
+        velocity_limit=None,
+        accel_limit=None,
+        maximum_torque=None,
+        period_s=0.025,
+        timeout=None,
+):
+    """Move servos to setpoint positions and wait for all to complete.
+
+    This function provides a simple way to move one or more servos to
+    setpoint positions and wait until all trajectories are complete.
+
+    Can be called two ways:
+
+    Single servo:
+        await move_to(controller, position=0.5, duration=1.0)
+
+    Multiple servos:
+        await move_to([
+            (controller1, 0.5),
+            (controller2, -0.3),
+        ], duration=2.0)
+
+    The setpoint can be a plain number (position), math.nan (hold position),
+    or a Setpoint object for additional control:
+
+        await move_to([
+            (c1, 0.5),                                   # Just position
+            (c2, Setpoint(position=-0.3, velocity=0.1)),   # With velocity
+            (c3, Setpoint(position=0.0, kp_scale=0.5)),    # With reduced kp
+            (c4, math.nan),                              # Hold position
+        ])
+
+    Servos with math.nan as their setpoint position will be commanded to
+    hold their current position (position=nan keeps the current
+    setpoint) but will not be waited on for completion. This is useful
+    when you need to move a subset of servos while keeping others
+    active.
+
+    If a duration is specified, then approximate velocity limits will
+    be used to attempt to have all servos reach trajectory completion
+    at the same time.  However, this does not account for any possible
+    configured or specified acceleration limit or starting velocity,
+    so the actual completion times may still be quite far apart.
+
+    Arguments:
+      setpoints: List of (Controller, setpoint) tuples for multi-servo, or
+               single Controller for single-servo case. The setpoint can be
+               a number, math.nan, or a Setpoint object.
+      position: Setpoint position (required for single-servo case)
+      transport: Optional transport, inferred from controllers if absent
+      duration: If specified, velocity limits are calculated so all
+                servos complete in approximately this time. This
+                overrides both the global velocity_limit and any
+                Setpoint velocity_limit.
+      velocity_limit: Default velocity limit for servos without a
+                      Setpoint velocity_limit. Setpoint values override
+                      this.
+      accel_limit: Default acceleration limit. Setpoint values override
+                   this.
+      maximum_torque: Default maximum torque limit. Setpoint values
+                      override this.
+      period_s: Polling interval for checking completion (default
+                0.025s)
+      timeout: Maximum time to wait (raises TimeoutError if exceeded)
+
+    Returns:
+      For single-servo case: the final Result object
+      For multi-servo case: List of (Controller, final_Result) tuples
+                              in same order as input
+
+    Raises:
+      FaultError: If any servo enters fault or timeout mode
+      asyncio.TimeoutError: If timeout exceeded
+      ValueError: If position is not provided for single-servo case
+
+    """
+
+    # Normalize to list of (controller, setpoint_spec) tuples
+    single_servo = False
+    if isinstance(setpoints, Controller):
+        # Single servo case
+        if position is None:
+            raise ValueError("position required for single-servo case")
+        setpoints = [(setpoints, position)]
+        single_servo = True
+    else:
+        # Multi-servo case: setpoints is a list of (controller, setpoint) tuples
+        setpoints = list(setpoints)
+
+    if not setpoints:
+        return [] if not single_servo else None
+
+    # Normalize all setpoints
+    normalized = []
+    for controller, setpoint_spec in setpoints:
+        pos, kwargs = _normalize_setpoint(setpoint_spec)
+        normalized.append({'c': controller, 'pos': pos, 'kwargs': kwargs})
+
+    # Get transport from the first controller if not provided.
+    if transport is None:
+        transport = normalized[0]['c']._get_transport()
+
+    # Set up the query resolution to include the flags we need.
+    qr = copy.deepcopy(normalized[0]['c'].query_resolution)
+    if qr.mode == mp.IGNORE:
+        qr.mode = mp.INT8
+    if qr.fault == mp.IGNORE:
+        qr.fault = mp.INT8
+    qr.trajectory_complete = mp.INT8
+
+    # If duration is specified, query the current positions and
+    # calculate the necessary velocity limits.
+    if duration is not None and duration > 0:
+        queries = [n['c'].make_query() for n in normalized]
+        results = await transport.cycle(queries)
+
+        # Map results to controllers by ID
+        result_by_id = {r.id: r for r in results}
+
+        # Calculate per-servo velocity limits: velocity = distance / duration
+        for norm in normalized:
+            if math.isnan(norm['pos']):
+                continue
+
+            result = result_by_id.get(norm['c'].id)
+            if result is None or Register.POSITION not in result.values:
+                raise RuntimeError(
+                    f'Could not retrieve current position for {norm["c"]}')
+
+            current_pos = result.values.get(Register.POSITION)
+
+            distance = abs(norm['pos'] - current_pos)
+            norm['velocity_limit'] = (
+                (distance / duration) if distance != 0 else None)
+
+    # Send position commands and poll until all complete
+    start_time = time.time()
+
+    count = 2
+
+    while True:
+        if timeout is not None and (time.time() - start_time) > timeout:
+            raise asyncio.TimeoutError(f"move_to timed out after {timeout}s")
+
+        # Build commands
+        commands = []
+
+        for norm in normalized:
+            # Active setpoint or NaN setpoint (both get position commands)
+            # Start with global defaults, then apply Setpoint overrides
+            cmd_kwargs = {
+                'position': norm['pos'],
+                'query': True,
+                'query_override': qr,
+            }
+
+            # Apply global defaults first
+            if velocity_limit is not None:
+                cmd_kwargs['velocity_limit'] = velocity_limit
+            if accel_limit is not None:
+                cmd_kwargs['accel_limit'] = accel_limit
+            if maximum_torque is not None:
+                cmd_kwargs['maximum_torque'] = maximum_torque
+
+            # Setpoint object values override global defaults
+            cmd_kwargs.update(norm['kwargs'])
+
+            # Duration-computed velocity limits override everything
+            # (since duration is for coordinated timing across all servos)
+            duration_velocity_limit = norm.get('velocity_limit', None)
+            if duration_velocity_limit is not None:
+                cmd_kwargs['velocity_limit'] = duration_velocity_limit
+
+            commands.append(norm['c'].make_position(**cmd_kwargs))
+
+        results = await transport.cycle(commands)
+
+        result_by_id = {r.id: r for r in results}
+
+        final_results = []
+        completed = []
+
+        count = max(count - 1, 0)
+
+        # Process results
+        for norm in normalized:
+            result = result_by_id.get(norm['c'].id)
+            if result is None:
+                continue
+
+            final_results.append((norm['c'], result))
+
+            mode = result.values.get(Register.MODE, Mode.STOPPED)
+
+            if mode == Mode.FAULT or mode == Mode.TIMEOUT:
+                fault_code = result.values.get(Register.FAULT, 0)
+                raise FaultError(mode, fault_code)
+
+            # Only check trajectory_complete for non-NaN setpoints
+            if not math.isnan(norm['pos']):
+                # While the motor is transitioning from kStopped through
+                # the calibration sequence to kPosition, the position
+                # trajectory code does not run and TRAJECTORY_COMPLETE
+                # retains its prior value (often 1).  Don't trust it
+                # until the motor is actually in a position-tracking
+                # mode.
+                in_position_mode = mode in (Mode.POSITION, Mode.STAY_WITHIN)
+                trajectory_complete = result.values.get(
+                    Register.TRAJECTORY_COMPLETE, 0)
+                completed.append(in_position_mode and trajectory_complete)
+
+        if count == 0 and all(completed):
+            if single_servo:
+                return final_results[0][1]
+            return final_results
+
+        await asyncio.sleep(period_s)

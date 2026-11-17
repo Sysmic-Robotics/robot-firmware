@@ -1,0 +1,14 @@
+[package]
+name = "moteus-protocol"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Low-level CAN-FD protocol types for moteus brushless motor controllers (no_std compatible)"
+license = "Apache-2.0"
+repository = "https://github.com/mjbots/moteus"
+keywords = ["moteus", "robotics", "motor-control", "can-fd", "no-std"]
+categories = ["science::robotics", "hardware-support", "no-std", "embedded"]
+
+[dependencies]
+moteus-derive.workspace = true
+num_enum = { version = "0.7", default-features = false }

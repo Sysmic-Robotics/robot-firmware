@@ -1,0 +1,13 @@
+
+======================================================================
+  TestescalonVx.csv
+  Duration: 6.5s  |  Samples: 7117  |  Columns: 4
+  Command col: v_vel[0]
+======================================================================
+
+  ── Step 1: 0.0 → 1.0  (0.535s) ──
+    ax_ms2                gain=-1.049   ss=-1.049   err=2.049   0ms   lat=10ms   OS=631.3%   Tp=495ms   Ts2=—   Ts5=534ms   ⚠ NOISY
+    vx_enc                gain=0.383   ss=0.383   err=0.617   335ms   lat=0ms   OS=28.1%   Tp=455ms   Ts2=534ms   Ts5=534ms   ⚠ NOISY
+    vx_est                gain=0.381   ss=0.381   err=0.619   340ms   lat=0ms   OS=28.9%   Tp=455ms   Ts2=534ms   Ts5=534ms   ⚠ NOISY
+
+✓ Metrics exported to /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/partB_csv_analyzer.json

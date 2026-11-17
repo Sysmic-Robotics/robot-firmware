@@ -51,7 +51,7 @@ void VL6180X_Write16(VL6180X_Handler_t* device, uint16_t command, uint16_t data)
   device->txBuffer[0] = (uint8_t)(command >> 8);
   device->txBuffer[1] = (uint8_t)(command & 0xFF);
   device->txBuffer[2] = (uint8_t)(data >> 8);
-  device->txBuffer[2] = (uint8_t)(data & 0xFF);
+  device->txBuffer[3] = (uint8_t)(data & 0xFF);
   uint8_t send_address = device->i2cAddress << 1;
 
   HAL_I2C_Master_Transmit(device->i2cHandler, send_address, device->txBuffer, 4, 1000);
@@ -149,14 +149,20 @@ void VL6180X_LoadSettings(VL6180X_Handler_t *device) {
 /**************************************************************************/
 
 uint8_t VL6180X_ReadRange(VL6180X_Handler_t *device) {
+  uint32_t timeout = HAL_GetTick();
   // wait for device to be ready for range measurement
-  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_STATUS) & 0x01));
+  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_STATUS) & 0x01)) {
+    if (HAL_GetTick() - timeout > 100) return 0;
+  }
 
   // Start a range measurement
   VL6180X_Write8(device, VL6180X_REG_SYSRANGE_START, 0x01);
 
   // Poll until bit 2 is set
-  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04));
+  timeout = HAL_GetTick();
+  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04)) {
+    if (HAL_GetTick() - timeout > 100) return 0;
+  }
 
   // read range in mm
   uint8_t range = VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_VAL);
@@ -180,7 +186,10 @@ uint8_t VL6180X_ReadRange(VL6180X_Handler_t *device) {
 
 bool VL6180X_StartRange(VL6180X_Handler_t *device) {
   // wait for device to be ready for range measurement
-  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_STATUS) & 0x01));
+  uint32_t timeout = HAL_GetTick();
+  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_STATUS) & 0x01)) {
+    if (HAL_GetTick() - timeout > 100) return false;
+  }
 
   // Start a range measurement
   VL6180X_Write8(device, VL6180X_REG_SYSRANGE_START, 0x01);
@@ -210,7 +219,10 @@ bool VL6180X_IsRangeComplete(VL6180X_Handler_t *device) {
 
 bool VL6180X_WaitRangeComplete(VL6180X_Handler_t *device) {
   // Poll until bit 2 is set
-  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04));
+  uint32_t timeout = HAL_GetTick();
+  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04)) {
+    if (HAL_GetTick() - timeout > 100) return false;
+  }
   return true;
 }
 
@@ -306,7 +318,10 @@ float VL6180X_ReadLux(VL6180X_Handler_t *device, uint8_t gain) {
   VL6180X_Write8(device, VL6180X_REG_SYSALS_START, 0x1);
 
   // Poll until "New Sample Ready threshold event" is set
-  while (4 != ((VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) >> 3) & 0x7));
+  uint32_t timeout = HAL_GetTick();
+  while (4 != ((VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) >> 3) & 0x7)) {
+    if (HAL_GetTick() - timeout > 200) break;
+  }
 
   // read lux!
   float lux = VL6180X_Read16(device, VL6180X_REG_RESULT_ALS_VAL);
@@ -340,8 +355,7 @@ float VL6180X_ReadLux(VL6180X_Handler_t *device, uint8_t gain) {
     lux /= 40;
     break;
   }
-  lux *= 100;
-  lux /= 100; // integration time in ms
+  lux /= 100.0f; // integration time: 100ms
 
   return lux;
 }

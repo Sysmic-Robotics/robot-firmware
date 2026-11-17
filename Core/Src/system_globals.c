@@ -10,16 +10,45 @@ uint8_t nrf_config = 0;
 nRF24_Handler_t nrf_device = {0};
 uint8_t tx_node_addr[5] = {'s', 'y', 's', 't', 'x'};
 uint8_t rx_node_addr[5] = {'s', 'y', 's', 'r', 'x'};
-osMessageQId nrf24CheckHandle = NULL;
+uint8_t correction_node_addr[5] = {'s', 'y', 's', 'r', 'c'};
+uint32_t radio_last_rx_tick = 0;
+uint8_t radio_ever_received = 0;
 
 // ===================== DRIVE TASK =====================
 uint8_t direction[4] = {0};
 float speed[4] = {0};
 float kinematic[4][3] = {0};
-float a = 0.0f; //-90 y 90  1.08
-float b = 0.0f;//-28.0f; //-45 y 45 1.16
+
 Motor_Handler_t motor[4] = {0};
 float v_vel[3] = {0};
+float robot_max_angular_acc = ROBOT_MAX_ANGULAR_ACC;
+float robot_max_linear_acc = ROBOT_MAX_LINEAR_ACC;
+
+// ===================== ODOMETRY / ROBOT CONTROL =====================
+float vx_est = 0.0f;
+float vy_est = 0.0f;
+float vth_est = 0.0f;
+float vx_enc = 0.0f, vy_enc = 0.0f , vth_enc = 0.0f;
+float theta_est = 0.0f;
+float x_target = 0.0f;
+float y_target = 0.0f;
+float theta_target = 0.0f;
+uint8_t position_control_active = 0;
+float offset_x = 0.0f;
+float offset_y = 0.0f;
+float offset_theta = 0.0f;
+uint8_t camera_correction_enabled = 0;
+PID_Handler_t pid_vx = {0};
+PID_Handler_t pid_vy = {0};
+PID_Handler_t pid_vth = {0};
+uint8_t robot_pid_enable = 0;
+
+// Per-axis PID passthrough gates (open-loop characterization): default ENABLED
+// (1) so closed-loop behavior is unchanged; writing 0 via stm32monitor passes
+// the raw command through for that axis while the others stay closed-loop.
+uint8_t pid_vx_enable = 0;
+uint8_t pid_vy_enable = 0;
+uint8_t pid_vth_enable = 0;
 
 // ===================== KICK TASK =====================
 float dribbler_speed = 0.0f;
@@ -28,37 +57,65 @@ uint8_t kick_sel = 0;
 uint8_t kick_flag = 0;
 uint16_t kick_delay = 0;
 uint16_t kick_count = 0;
-osMessageQId kickQueueHandle = NULL;
-osMutexId kickFlagHandle = NULL;
-osEvent kicker_side = {0};
-
+osMessageQueueId_t kickQueueHandle = NULL;
+osMutexId_t radioMutexHandle = NULL;
 // ===================== BALL DETECTOR TASK =====================
 VL6180X_Handler_t range_sensor = {0};
-uint8_t ball_posession = 0x00;
-uint8_t radioTx_counter = 0;
+uint8_t ball_possession = 0x00;
+
 uint16_t ball_range = 0;
 uint16_t ball_accum = 0;
 uint8_t ball_meas_set[10] = {0};
-osThreadId ballDetectorTaskHandle = NULL;
+
+int16_t accel_x_raw = 0;
+int16_t accel_y_raw = 0;
+int16_t accel_z_raw = 0;
+
+float accel_x_g = 0.0f;
+float accel_y_g = 0.0f;
+float accel_z_g = 0.0f;
+
+
+int16_t gyro_x_raw = 0;
+int16_t gyro_y_raw = 0;
+int16_t gyro_z_raw = 0;
+float gyro_x_dps = 0.0f;
+float gyro_y_dps = 0.0f;
+float gyro_z_dps = 0.0f;
 
 // ===================== COMMON =====================
 
 // ===================== RTOS TASK HANDLES =====================
-osThreadId driveTaskHandle = NULL;
-osThreadId radioTaskHandle = NULL;
-osThreadId kickTaskHandle = NULL;
+osThreadId_t radioTaskHandle = NULL;
+osThreadId_t kickTaskHandle = NULL;
+osThreadId_t telemetryTaskHandle = NULL;
 
-// ===================== HANDLERS DE PERIFÉRICOS =====================
-I2C_HandleTypeDef hi2c1;
-I2C_HandleTypeDef hi2c2;
-I2C_HandleTypeDef hi2c3;
-SPI_HandleTypeDef hspi1;
-TIM_HandleTypeDef htim2;
-TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim5;
-TIM_HandleTypeDef htim8;
-UART_HandleTypeDef huart5;
-DMA_HandleTypeDef hdma_uart5_tx;
+// ===================== SENSOR FUSION (KALMAN) =====================
+float ax_ms2 = 0.0f;
+float ay_ms2 = 0.0f;
+float gyro_z_rads = 0.0f;
+EKF_t ekf = {0};
+uint8_t kalman_ready = 0;
+
+
+// ===================== PER-MOTOR PID PARAMS =====================
+PID_Params_t wheel_pid_params[4] = {
+    {12.80f, 5.0f, 0.0f, 4095.0f, -4095.0f, 4095.0f, 0.001f,1.0},
+    {12.80f, 5.0f, 0.0f, 4095.0f, -4095.0f, 4095.0f, 0.001f,1.0},
+    {12.80f, 5.0f, 0.0f, 4095.0f, -4095.0f, 4095.0f, 0.001f,1.0},
+    {12.80f, 5.0f, 0.0f, 4095.0f, -4095.0f, 4095.0f, 0.001f,1.0},
+};
+
+// ===================== OPEN-LOOP TEST MODE =====================
+uint8_t test_enable = 1;
+uint8_t test_motor = 1;
+float   test_voltage = 0.0f;
+
+// ===================== CALIBRATION TELEMETRY =====================
+uint8_t telemetry_calib_mode = 0;
 
 // ===================== DRIBBLER SPEED SET =====================
 const uint16_t Dribbler_SpeedSet[] = {0, 170, 341, 511, 682, 852, 1023}; // Ajusta los valores según tu aplicación
+
+
+

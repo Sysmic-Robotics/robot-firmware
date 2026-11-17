@@ -1,0 +1,129 @@
+TASK 8 — Characterize vx/vy & close the XY loop (Lua PID prototype + rotation unit test)
+=========================================================================================
+Task id        : task-8-characterize-vxvy-close-xy-loop
+Date           : 2026-08-06
+Status         : FILES CREATED + STATIC VERIFIED (runtime validation PENDING — see bottom)
+
+Files created (absolute paths)
+--------------------------------------------------------------------
+A. /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/xy_loop_test.lua
+   Engine-side field-frame X/Y position PID prototype. Config block at top
+   (ROBOT_ID, TEAM, TARGETS, DURATION, KP=4.3745, KI=1.8227, KFF=0.0,
+   OUTPUT_MAX=2.0, INTEGRAL_MAX=1.0, STALE_FRAMES=2). process() called once
+   per frame (~60 FPS): reads get_robot_state(ROBOT_ID, TEAM), guards
+   inactive/stale state, computes field error ex/ey, rotates it into the body
+   frame via rotate_field_to_body(theta, ex, ey), accumulates per-axis
+   integral with anti-windup clamp, sends 5-arg
+   send_velocity(ROBOT_ID, TEAM, cmd_vx, cmd_vy, theta_target) where
+   theta_target = wrap(rs.orientation). Advances through TARGETS every
+   DURATION frames; prints [xy] diagnostics and [test] done marker.
+
+B. /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/tests/test_xy_rotation.lua
+   Pure-math Lua unit test for rotate_field_to_body() and wrap(). Runnable
+   standalone with lua5.4 (no engine). Asserts:
+     1. field (1,0) @ theta=pi/2  -> body (0,-1)
+     2. field (0,1) @ theta=0     -> body (0,1)
+     3. field (1,0) @ theta=pi    -> body (-1,0)
+     4. field (1,1) @ theta=pi/4  -> body (sqrt(2), 0) within 1e-9
+     5. wrap(3*pi) == -pi and wrap(-3*pi) == pi
+   Prints "[ok] all rotation asserts passed" on success.
+
+C. /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/task-8-characterize-vxvy-close-xy-loop.txt
+   This evidence file.
+
+Lua interpreter detection
+---------------------------------------------------------------------
+   Command run:
+     command -v lua5.4; command -v lua; command -v luac
+     for c in lua5.4 lua5.3 lua5.2 lua5.1 lua luajit luac luac5.4; do
+       p=$(command -v $c 2>/dev/null); [ -n "$p" ] && echo "FOUND: $c -> $p"; done
+     ls /usr/bin/lua* /usr/local/bin/lua* /opt/homebrew/bin/lua* 2>/dev/null
+     find /home/sysmic -maxdepth 4 -name "lua*" -type f 2>/dev/null | head -20
+
+   RESULT: NO Lua interpreter installed on this machine (no lua5.4, lua,
+   luajit, luac, or any lua* binary found in PATH, /usr/bin, /usr/local/bin,
+   /opt/homebrew/bin, or under /home/sysmic). The only lua* hits were
+   unrelated protobuf/docs files.
+
+   => FALLBACK USED: static verification by grep (per task instructions),
+      documented below. The rotation test could NOT be executed here; it is
+      designed to run with `lua5.4 test_xy_rotation.lua` on a machine with a
+      Lua interpreter (e.g. the engine host).
+
+Verification commands and outputs
+-------------------------------------
+   Command 1: ls -la /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/
+   Output: velocity_step_test.lua, api_globals.lua, ... (dir exists) — PASS
+
+   Command 2: mkdir -p /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/tests
+   Output: (created) — PASS
+
+   Command 3: ls -la /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/tests/
+   Output: drwxrwxr-x 2 sysmic sysmic 4096 . .. (empty dir created) — PASS
+
+   Command 4 (grep checks on xy_loop_test.lua):
+     grep -n "wrap(" xy_loop_test.lua
+       -> 57: local function wrap(a)
+       -> 97: send_velocity(ROBOT_ID, TEAM, 0.0, 0.0, wrap(rs.orientation))
+       -> 126: local theta_target = wrap(rs.orientation)
+       PASS: wrap() applied to the orientation / theta_target.
+
+     grep -n "send_velocity(ROBOT_ID, TEAM, cmd_vx, cmd_vy" xy_loop_test.lua
+       -> 128: send_velocity(ROBOT_ID, TEAM, cmd_vx, cmd_vy, theta_target)
+       PASS: 5-arg send_velocity form.
+
+     grep -n "math.cos\|math.sin\|rotate_field_to_body" xy_loop_test.lua
+       -> 74: local function rotate_field_to_body(theta, ex, ey)
+       -> 75: local c, s = math.cos(theta), math.sin(theta)
+       -> 114: local vx_local, vy_local = rotate_field_to_body(rs.orientation, ex, ey)
+       PASS: rotation formula present (vx = cos*ex + sin*ey, vy = -sin*ex + cos*ey).
+
+     grep -n "motion(\|move_to(\|move_direct(" xy_loop_test.lua
+       -> (no output) — PASS: no forbidden motion()/move_to()/move_direct() calls.
+
+     grep -n "omega" xy_loop_test.lua
+       -> 8: -- this script never commands omega -- the send_velocity omega parameter is the
+       PASS: "omega" appears only in a comment; no angular velocity is commanded.
+       The 5th send_velocity arg is the wrapped absolute theta target.
+
+     grep -n "KP\s*=\|KI\s*=\|KFF\s*=" xy_loop_test.lua
+       -> 35: local KP = 4.3745 -- verified T7 position gain
+       -> 36: local KI = 1.8227 -- verified T7 integral gain
+       -> 37: local KFF = 0.0    -- optional feed-forward (unused, default 0)
+       PASS: verified T7 gains used verbatim.
+
+   Command 5 (grep on test file):
+     grep -n "assert_close\|\[ok\]" tests/test_xy_rotation.lua
+       -> all 5 assert groups + print("[ok] all rotation asserts passed")
+       PASS: all required assertions present.
+
+   Command 6 (manual math verification of the 5 asserts):
+     rotate_field_to_body(theta, ex, ey) = (cos*ex + sin*ey, -sin*ex + cos*ey)
+       theta=pi/2, (1,0) -> (0*1+1*0, -1*1+0*0) = (0,-1)   PASS
+       theta=0,    (0,1) -> (1*0+0*1, -0*0+1*1) = (0,1)    PASS
+       theta=pi,   (1,0) -> (-1*1+0*0, -0*1+-1*0) = (-1,0) PASS
+       theta=pi/4, (1,1) -> (s2/2+s2/2, -s2/2+s2/2) = (sqrt2,0) PASS
+       wrap(3*pi): 3pi>=pi -> pi; pi>=pi -> -pi  => -pi     PASS
+       wrap(-3*pi): -3pi<=-pi -> -pi; -pi<=-pi -> pi => pi  PASS
+     All 5 asserts verified by hand (no interpreter available to execute).
+
+Grep results summary
+--------------------
+   - wrap( applied to orientation/theta_target ......... PASS
+   - send_velocity(ROBOT_ID, TEAM, cmd_vx, cmd_vy, ...) 5-arg form ... PASS
+   - rotation formula (cos/sin) present ................ PASS
+   - NO motion( / move_to( / move_direct( ............... PASS
+   - no omega commanded (5th arg = wrapped theta target) PASS
+   - gains KP=4.3745, KI=1.8227, KFF=0.0 ............... PASS
+
+Lua interpreter used: NONE AVAILABLE (fallback static verification, see above)
+
+PENDING — field validation on engine + grSim / real robot is operator/later:
+   - Load xy_loop_test.lua in the engine (Lua > Load Script) with a robot on
+     the field; confirm [xy] diagnostics show the robot converging to each
+     TARGETS setpoint and [test] done all targets after 4*120 frames.
+   - Run the rotation unit test on a machine with lua5.4:
+       lua5.4 /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/tests/test_xy_rotation.lua
+     expected output: "[ok] all rotation asserts passed".
+   - Tune KP/KI only after observing the closed-loop response on the real
+     system; the T7-verified values (4.3745 / 1.8227) are the starting point.

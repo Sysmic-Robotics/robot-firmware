@@ -1,0 +1,43 @@
+# Task 5 — Vx Plant Identification (Multi-Step Open-Loop)
+
+**Dataset**: robot/analysis/VxMultiTest.csv (2801 rows, t=0.009→27.02s, engine vision stream)
+**Harness**: 6 steps (cmd_vx): +0.3, -0.3, +0.6, -0.6, +1.0, -1.0, each held ~3.2s with ~1.1s zero gaps (velocity_multistep_test.lua design). Steady state reached (3.2s hold >> ~1.7s needed for L=0.13s, T=0.31s).
+**Feedback**: ekf_vx (vision EKF). Loop open (robot_pid_enable=1, but velocity loop feedforward-only in this mode).
+
+## Per-step FOPDT fits (csv: /tmp/fit_vx_multistep.py)
+
+| step | cmd | vss (ekf_vx) | K | L (ms) | T (ms) |
+|------|-----|-------------|------|--------|--------|
+| 1 | +0.3 | 0.094 | 0.313 | 112 | 758 |
+| 2 | -0.3 | -0.074 | 0.246 | 113 | 415 |
+| 3 | +0.6 | 0.202 | 0.337 | 128 | 335 |
+| 4 | -0.6 | -0.188 | 0.314 | 145 | 240 |
+| 5 | +1.0 | 0.344 | 0.343 | 128 | 288 |
+| 6 | -1.0 | -0.335 | 0.335 | 146 | 250 |
+
+## Averaged plant (Vx, vision-referenced)
+
+- **K = 0.315** (mean) / 0.325 (median)  — flat 0.31-0.34 across amplitudes ⇒ linear scaling (not friction)
+- **L = 128 ms** (0.11-0.15s) — the earlier 421ms from VxTest was a rate-limiter ramp artifact
+- **T = 312 ms** (median; mean 381 due to step-1 outlier)
+- T/L ≈ 3.0 — delay-dominated but controllable
+
+## Controller (IMC-PI, sampleTime 5ms / 200Hz)
+
+- IMC-PI (mean plant): **Kp = 2.58, Ki = 8.27**
+- IMC-PI (median plant): **Kp = 2.50, Ki = 8.01**
+- **RECOMMENDED pid_vx: Kp = 2.5, Ki = 8.0, Kd = 0** (use 2.58/8.27 if slightly faster wanted)
+
+## Cross-validation
+
+Original repo firmware pid_vx = Kp 2.5, Ki 9.2 — nearly identical to the clean IMC-PI (2.5/8.0).
+⇒ The original tuning was correct; the previously flashed 1.15/3.48 (from contaminated VxTest ID) was too conservative.
+
+## Notes
+
+- Rate limiter (ROBOT_MAX_LINEAR_ACC=1.5f, radio side, drive_task.c:373-381) ramps step edges ~0.67s — contaminated VxTest L fit; KEEP for closed-loop tests (smooths reference).
+- Encoder-vs-vision scale ambiguity (K=0.315 vs 1.0): decisive test = stm32monitor 1kHz CSV (vx_est vs ekf_vx). Not blocking closed-loop Vx verify.
+
+## Next (Task 6)
+
+Flash pid_vx Kp=2.5 Ki=8.0, run velocity_multistep_test.lua closed-loop, verify ekf_vx tracks 0.3/0.6/1.0 (±tolerance, no sustained error).

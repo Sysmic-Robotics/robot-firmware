@@ -1,0 +1,20 @@
+{
+  "file": "TestescalonVx.csv",
+  "command_column": "v_vel[0]",
+  "measurement_column": "vx_est",
+  "mode": "open-loop",
+  "steps": [
+    {
+      "step": 1,
+      "from": 0.0,
+      "to": 1.0,
+      "mode": "open-loop",
+      "fopdt": {
+        "K": 0.38052472943640026,
+        "L": 0.09499999999999886,
+        "T": 0.24500000000000455,
+        "ss_meas": 0.38052472943640026
+      }
+    }
+  ]
+}

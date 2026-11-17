@@ -1,0 +1,144 @@
+TASK 9 — Characterize vx/vy & close the XY loop (Rust PositionPID + Lua binding + tests + docs)
+=================================================================================================
+Task id        : task-9-characterize-vxvy-close-xy-loop
+Date           : 2026-08-06
+Status         : COMPLETE — cargo test exit 0, cargo build exit 0, docs updated, evidence written
+
+What was done
+--------------------------------------------------------------------
+Promoted the T8 Lua X/Y position PID prototype to a Rust `PositionPID`
+controller in the SSL robot engine crate, wired it into the Lua API,
+added cargo unit tests, and updated the docs.
+
+Files created (absolute paths)
+--------------------------------------------------------------------
+A. /home/sysmic/Desktop/SysmicProyect/engine/engine/src/motion/controllers/pid/position_pid.rs
+   PositionPID struct with fields kp, ki, kff (reserved, default 0.0),
+   output_max, integral (per-axis (vx,vy) tuple), integral_max, target,
+   last_fused_state, last_seen_frame. Methods: new(kp,ki), reset(),
+   set_target(x,y), set_gains(kp,ki), set_limits(output_max,integral_max),
+   step(&RobotState) -> (vx_local, vy_local, theta_target).
+   step() mirrors lua/xy_loop_test.lua EXACTLY:
+     - field error ex = target_x - state.x, ey = target_y - state.y
+     - rotate into body frame: vx = cos(t)*ex + sin(t)*ey,
+       vy = -sin(t)*ex + cos(t)*ey  (R(-theta) * field error)
+     - per-axis integral accumulation with anti-windup clamp +-integral_max
+     - cmd = clamp(kp*err + ki*integral, -output_max, output_max)
+     - theta_target = wrap(state.orientation) to [-pi,pi] (while-loop style,
+       boundary convention wrap(3*pi)=-pi, wrap(-3*pi)=pi)
+     - stale guard: state older than 2x the position-loop period (~60 Hz)
+       per state.last_update (timestamp-based, G6 semantics) -> returns
+       (0, 0, wrapped theta)
+   Default gains (T7-verified): kp=4.3745, ki=1.8227, kff=0.0,
+   output_max=2.0, integral_max=1.0.
+
+B. /home/sysmic/Desktop/SysmicProyect/engine/engine/docs/characterization-guide.md
+   Engine-side guide: engine CSV columns (from src/logger/logger.rs header),
+   X/Y loop procedure (design gains -> run loop -> watch/record -> analyze),
+   and the new Lua/Rust API (set_position_target binding + PositionPID).
+
+Files modified (absolute paths)
+--------------------------------------------------------------------
+1. /home/sysmic/Desktop/SysmicProyect/engine/engine/src/motion/controllers/pid/mod.rs
+   Added: pub mod position_pid;  (module exported via motion/mod.rs path)
+2. /home/sysmic/Desktop/SysmicProyect/engine/engine/src/sender/radio.rs
+   Added position_pids: HashMap<(i32,i32), PositionPID> field (init in new())
+   and compute_position_target(&mut self, robot, target, kp, ki) ->
+   MotionCommand, mirroring compute_face_to (persistent PID per robot,
+   gain-change detection, set_target + step, vx/vy + wrapped theta target).
+3. /home/sysmic/Desktop/SysmicProyect/engine/engine/src/lua_interface/api/control.rs
+   Added Lua binding set_position_target(id, team, x, y, kp?, ki?) with
+   optional kp/ki defaulting to DEFAULT_KP=4.3745 / DEFAULT_KI=1.8227,
+   following the existing face_to binding style (read world state, active
+   check, compute via radio, add_motion_command). Registered on globals.
+4. /home/sysmic/Desktop/SysmicProyect/engine/engine/lua/api_globals.lua
+   Added ---@param declaration + function set_position_target(id, team, x, y,
+   kp, ki) end, exactly like the sibling face_to declaration.
+5. /home/sysmic/Desktop/SysmicProyect/robot/analysis/README.md
+   Added sections 4 (Position Loop Designer — position_loop_design.py) and
+   5 (run_openloop_vx.sh / run_openloop_vy.sh) with usage and the
+   engine-vs-robot rate distinction (60 Hz position / 200 Hz velocity).
+
+NOT modified (per constraints): pid.rs, bangbang, face_to controllers,
+tracker/vision/fusion, T8 Lua files (xy_loop_test.lua, tests/test_xy_rotation.lua
+remain byte-identical), Cargo.toml (no new dependencies), no git commands.
+
+Unit tests added (in position_pid.rs #[cfg(test)])
+--------------------------------------------------------------------
+1. rotation_maps_field_error_into_body_frame
+     field (1,0) @ t=pi/2 -> (0,-1); (0,1) @ t=0 -> (0,1);
+     (1,0) @ t=pi -> (-1,0); (1,1) @ t=pi/4 -> (sqrt(2),0)  [within 1e-9]
+2. integral_accumulates_per_axis_with_anti_windup
+     pure integral (kp=0, ki=1) accumulates 1.0 then 2.0; clamps at 10.0
+3. integral_anti_windup_clamps_negative_axis
+     negative accumulation clamps at -integral_max (-1.0)
+4. theta_wrap_boundary_convention
+     wrap(3*pi) == -pi, wrap(-3*pi) == pi; step() theta target wrapped too
+5. stale_state_is_rejected_with_zero_commands
+     1 s old last_update (>> 2x 1/60 s period) -> (0,0,wrapped theta);
+     stale step does not advance the integral
+
+Verification commands and outputs (cargo in ~/.cargo/bin, crate root
+/home/sysmic/Desktop/SysmicProyect/engine/engine)
+--------------------------------------------------------------------
+Command 1: cargo test
+Output:
+  running 27 tests
+  test motion::controllers::bangbang::tests::trajectory1d_zero_distance ... ok
+  test motion::controllers::bangbang::tests::trajectory1d_positive ... ok
+  test motion::controllers::bangbang::tests::trajectory2d_converges ... ok
+  test motion::controllers::pid::pid::tests::pid_derivative ... ok
+  test motion::controllers::pid::pid::tests::pid_integral_accumulates ... ok
+  test motion::controllers::pid::pid::tests::pid_proportional ... ok
+  test motion::controllers::pid::position_pid::tests::integral_accumulates_per_axis_with_anti_windup ... ok
+  test motion::controllers::pid::position_pid::tests::integral_anti_windup_clamps_negative_axis ... ok
+  test motion::controllers::pid::position_pid::tests::rotation_maps_field_error_into_body_frame ... ok
+  test motion::controllers::pid::position_pid::tests::stale_state_is_rejected_with_zero_commands ... ok
+  test motion::controllers::pid::position_pid::tests::theta_wrap_boundary_convention ... ok
+  test receiver::tracker::tests::extrapolate_measurement_basic ... ok
+  ... (all 27 pass; full list of remaining tracker/packet tests omitted)
+  test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+CARGO_TEST_EXIT = 0
+
+Command 2: cargo build
+Output:
+  warning: `engine` (bin "engine") generated 22 warnings (pre-existing GUI
+  lifetime-elision warnings, none in the new/modified files)
+  Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.77s
+CARGO_BUILD_EXIT = 0
+
+Note: pre-existing warnings only (gui/panels lifetime elision, motion/mod.rs
+face_to never used). No warnings reference the new position_pid.rs,
+sender/radio.rs compute_position_target, or lua_interface/api/control.rs
+(verified by grepping cargo output for those paths).
+
+Design notes
+--------------------------------------------------------------------
+- Rotation test runs through the public step() with kp=1/ki=0 so the output
+  IS the rotated error (clamped at 2.0 > sqrt(2), no clipping).
+- wrap() boundary convention is the while-loop style required by the task:
+  wrap(3*pi) == -pi and wrap(-3*pi) == pi. The upper-boundary loop owns
+  values >= pi; the lower-boundary loop only runs when the first did not,
+  so the two boundaries do not fight at 3*pi / -3*pi.
+- Stale guard is timestamp-based (state.last_update vs Instant::now(),
+  threshold 2 x 16.67 ms), unlike the T8 Lua frame counter, per G6.
+- The 5th send_velocity arg carries the ABSOLUTE field-frame theta target
+  (wrapped to [-pi,pi]), NOT omega — the firmware velocity loop holds theta.
+- Persistent per-robot PositionPID instances live in Radio::position_pids so
+  integral state survives across frames (same pattern as face_pids).
+
+PENDING — field validation on engine + grSim / real robot (operator/later):
+  - Load a script calling set_position_target(0, 0, 0.5, 0.0) in the engine;
+    confirm the robot converges to the setpoint (Charts: Pos_X/Pos_Y vs
+    Cmd Vx/Cmd Vy; Recording CSV per engine/engine/docs/characterization-guide.md).
+  - Tune Kp/Ki only after observing the closed-loop response; the T7-verified
+    defaults (4.3745 / 1.8227) are the starting point.
+
+--------------------------------------------------------------------
+ORCHESTRATOR FINAL VERIFICATION (2026-08-06):
+- Re-added to src/motion/mod.rs: #[allow(unused_imports)]
+  pub use crate::motion::controllers::pid::position_pid::PositionPID;
+  (satisfies plan expected outcome B: exported via motion/mod.rs).
+- cargo build: exit 0 (22 pre-existing warnings, none new).
+- cargo test: 27 passed, 0 failed, exit 0 (re-run by orchestrator).
+- T9 COMPLETE.

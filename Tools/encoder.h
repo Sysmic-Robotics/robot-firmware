@@ -63,12 +63,7 @@ typedef enum {
 
 typedef struct Encoder_Handler {
 	volatile uint32_t *count;
-	float oldPos;
-
-	uint8_t overflow;	
-	int16_t resetVal;
-	float minSpeed;
-
+	uint16_t lastRaw;
 	Encoder_Status_t enable;
 } Encoder_Handler_t;
 

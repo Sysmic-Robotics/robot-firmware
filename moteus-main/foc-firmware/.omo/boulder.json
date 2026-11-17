@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "active_work_id": "foc-firmware-drivers",
+  "works": {
+    "foc-firmware-drivers": {
+      "work_id": "foc-firmware-drivers",
+      "active_plan": ".omo/plans/foc-firmware-drivers.md",
+      "plan_name": "foc-firmware-drivers",
+      "session_ids": ["codex:current"],
+      "status": "active",
+      "worktree_path": null
+    }
+  }
+}

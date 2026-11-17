@@ -1,0 +1,30 @@
+local ROBOT_ID = 0
+local TEAM     = 0
+local DURATION = 1.0
+
+local done = false
+local target_theta = nil
+local start_time = nil
+
+function process()
+    if done then return end
+
+    if start_time == nil then
+        start_time = get_time()
+        local rs = get_robot_state(ROBOT_ID, TEAM)
+        target_theta = rs.orientation
+        print(string.format("[test] theta: %.3f rad (%.1f°)", target_theta, target_theta * 180 / math.pi))
+    end
+
+    local elapsed = get_time() - start_time
+
+    if elapsed < DURATION then
+        send_velocity(ROBOT_ID, TEAM, -1.0, 0.0, target_theta)
+    else
+        send_velocity(ROBOT_ID, TEAM, 0.0, 0.0, target_theta)
+        if not done then
+            print(string.format("[test] done (%.2fs)", elapsed))
+            done = true
+        end
+    end
+end

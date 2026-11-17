@@ -1,0 +1,66 @@
+common --noenable_bzlmod
+build --incompatible_enable_cc_toolchain_resolution
+
+# Name bazel-out directories by the target platform so the firmware
+# (stm32g4) and host builds land in distinct output trees and coexist,
+# rather than relying on a per-platform --cpu (the bazel#12036
+# workaround that previously lived on --config=target).
+#
+# REVISIT ON BAZEL UPGRADE (bazelbuild/bazel#27575): these flags are
+# still experimental as of 7.4.1.  Bazel 9 turns
+# --experimental_platform_in_output_dir on by default for the *exec*
+# config only; the everywhere/target-config default is proposed for
+# Bazel 10, so setting it explicitly here is still required until then.
+# Bazel 9 also RENAMES --experimental_override_name_platform_in_output_dir
+# to --experimental_override_platform_cpu_name -- rename the line below
+# when bumping BAZEL_VERSION.
+build --experimental_platform_in_output_dir
+build --experimental_override_name_platform_in_output_dir=@com_github_mjbots_rules_mbed//:stm32g4=stm32g4
+
+build --features=c++20
+build --features=-c++17
+build --compiler=compiler
+
+build --nostart_end_lib
+
+build --strip never
+
+test --test_output=errors
+
+build --workspace_status_command=tools/workspace_status.sh
+
+build -c opt
+
+build --stamp
+
+build:host --platforms=@local_config_platform//:host
+build:host --linkopt=-lrt
+
+# UBSan build, layered on top of host. vptr and function checks are
+# disabled because the vendored llvm_toolchain ships only libc++'s
+# inline namespace and no libc++abi, so the typeinfo machinery those
+# checks rely on does not link. alignment is disabled because snappy
+# intentionally performs unaligned loads on x86.
+build:host_ubsan --config=host
+build:host_ubsan --copt=-fsanitize=undefined
+build:host_ubsan --copt=-fno-sanitize=vptr,function,alignment
+build:host_ubsan --linkopt=-fsanitize=undefined
+build:host_ubsan --linkopt=-fno-sanitize=vptr,function,alignment
+test:host_ubsan --test_env=UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
+
+# The firmware target selects the rules_mbed stm32g4 toolchain purely
+# by platform.  Distinct output directories are provided by
+# --experimental_platform_in_output_dir above, so the legacy
+# --crosstool_top/--cpu bazel#12036 workaround is no longer needed.
+build:target --platforms=@com_github_mjbots_rules_mbed//:stm32g4
+
+
+# Because something still tries to use the legacy cc_toolchain_suite (and I
+# can't figure out what, we manually specify it).
+build:windows --crosstool_top=@llvm_toolchain//:toolchain
+build:windows --compiler=clang
+build:windows --copt=-D_CRT_SECURE_NO_WARNINGS
+build:windows --copt -fms-compatibility-version=20
+build:windows --features=vendored_libc++
+
+test --test_size_filters=small

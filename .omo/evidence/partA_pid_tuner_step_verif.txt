@@ -1,0 +1,32 @@
+
+======================================================================
+  PID Tuner — Open-Loop Tuning
+  fixture_engine_vx_step_verif.csv  |  Step 1
+======================================================================
+
+  ── FOPDT Plant Model ──
+    Process gain K:  0.9391
+    Dead time  L:    333.3 ms
+    Time const T:    183.3 ms
+    T / L ratio:     0.5  (>3: difficult)
+    Warning: low T/L — plant is dead-time dominated, PID may struggle
+
+  ── Tuning Rules ──
+    Method             Type             Kp           Ki           Kd
+    ------------------ -------- ---------- ------------ ------------
+    Ziegler-Nichols    P             0.5857      0.000000      0.000000
+    Ziegler-Nichols    PI            0.5271      0.474884      0.000000
+    Ziegler-Nichols    PID           0.7028      1.054243      0.117139
+    Tyreus-Luyben      PI            0.1816      0.163571      0.000000
+    Tyreus-Luyben      PID           0.2636      0.343775      0.036899
+    IMC                P             0.1952      0.000000      0.000000
+    IMC                PI            0.1952      1.064896      0.000000
+    IMC                PID           0.1952      1.064896      0.032538
+
+  ── Recommended (IMC-PI conservative) ──
+    robotPidParams.Kp = 0.1952f;
+    robotPidParams.Ki = 1.0649f;
+    robotPidParams.Kd = 0.0f;
+    (sampleTime = 0.005s for outer loop)
+
+OK Exported to /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/partA_pid_tuner_step_verif.json

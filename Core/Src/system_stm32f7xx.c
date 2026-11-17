@@ -149,6 +149,22 @@
   */
 void SystemInit(void)
 {
+  /* PA11 (ADXL312 CS): LOW durante POR (~1ms) para forzar modo SPI,
+     luego HIGH para evitar que el ADXL312 vea glitches en SCK/MOSI
+     durante la inicialización del periférico SPI2 (MX_SPI2_Init). */
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+  __DSB();
+  __ISB();
+  /* PA11 = output push-pull LOW inmediatamente (para POR del ADXL312) */
+  GPIOA->MODER = (GPIOA->MODER & ~GPIO_MODER_MODER11) | GPIO_MODER_MODER11_0;
+  GPIOA->OTYPER &= ~GPIO_OTYPER_OT_11;
+  GPIOA->PUPDR &= ~GPIO_PUPDR_PUPDR11;
+  GPIOA->BSRR = (uint32_t)GPIO_PIN_11 << 16;
+  /* Delay: ADXL312 POR completa (~1ms) antes de deseleccionar */
+  for (volatile int __n = 0; __n < 100000; __n++);
+  /* PA11 = HIGH (deseleccionar ADXL312 antes de cualquier init de SPI2) */
+  GPIOA->BSRR = (uint32_t)GPIO_PIN_11;
+
   /* FPU settings ------------------------------------------------------------*/
   #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  /* set CP10 and CP11 Full Access */

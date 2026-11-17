@@ -121,4 +121,9 @@ void MAX581x_CodeAll(MAX581x_Handler_t *dacDevice, uint16_t dacData);
 void MAX581x_LoadAll(MAX581x_Handler_t *dacDevice);
 void MAX581x_CodeAllLoadAll(MAX581x_Handler_t *dacDevice, uint16_t dacData);
 
+extern volatile uint8_t max581x_dacBusy;
+
+void MAX581x_CodeLoadDMA(MAX581x_Handler_t *dacDevice, uint8_t dacSelector, uint16_t dacData);
+uint8_t MAX581x_IsDMABusy(void);
+
 #endif

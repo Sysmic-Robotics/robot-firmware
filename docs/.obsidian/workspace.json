@@ -1,0 +1,201 @@
+{
+  "main": {
+    "id": "a67985427deed01e",
+    "type": "split",
+    "children": [
+      {
+        "id": "21e04c3fd8bfd16a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "04d612283ef3e078",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "architecture.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "architecture"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "0fe2cd44790bc265",
+    "type": "split",
+    "children": [
+      {
+        "id": "8c44c630668e9011",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "9ebf862f4cbe9bdd",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Explorador de archivos"
+            }
+          },
+          {
+            "id": "e89e3bf00838d2fc",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Buscar"
+            }
+          },
+          {
+            "id": "1fd9727c95970451",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Marcadores"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "5d85b3d8d10cef67",
+    "type": "split",
+    "children": [
+      {
+        "id": "1745267c3b667849",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "962e891258ae8e80",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "diagrams/data-flow.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Enlaces entrantes de data-flow"
+            }
+          },
+          {
+            "id": "806f3f0f60f35a27",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "diagrams/data-flow.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Enlaces salientes de data-flow"
+            }
+          },
+          {
+            "id": "65f30ed00016c7cf",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Etiquetas"
+            }
+          },
+          {
+            "id": "def08cb3286f297d",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Todas las propiedades"
+            }
+          },
+          {
+            "id": "331164734c38e294",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "diagrams/data-flow.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Esquema de data-flow"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Abrir selector rápido": false,
+      "graph:Abrir vista gráfica": false,
+      "canvas:Crear nuevo lienzo": false,
+      "daily-notes:Abrir la nota de hoy": false,
+      "templates:Insertar plantilla": false,
+      "command-palette:Abrir paleta de comandos": false,
+      "bases:Crear nueva base": false
+    }
+  },
+  "active": "04d612283ef3e078",
+  "lastOpenFiles": [
+    "base-station.md",
+    "communication-protocol.md",
+    "engine.md",
+    "index.md",
+    "lua-strategy.md",
+    "robot-firmware.md",
+    "hardware.md",
+    "SUMMARY.md",
+    "architecture.md",
+    "diagrams/system-architecture.md",
+    "diagrams/software-stack.md",
+    "diagrams/data-flow.md"
+  ]
+}

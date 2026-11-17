@@ -1,0 +1,198 @@
+# -*- python -*-
+
+# Copyright 2026 mjbots Robotic Systems, LLC.  info@mjbots.com
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_rust//rust:defs.bzl", "rust_clippy", "rust_doc", "rust_doc_test", "rust_library", "rust_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# The example sources are part of the cargo package (so `cargo run
+# --example` works and they ship in the published crate), but the
+# rust_binary targets that build them live in //lib/rust.
+exports_files(glob(["examples/*.rs"]))
+
+rust_library(
+    name = "moteus",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_name = "moteus",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=feature=\"serialport\"",
+        "-D", "warnings",
+    ],
+    proc_macro_deps = [
+        "//lib/rust/moteus-derive",
+    ],
+    deps = [
+        "//lib/rust/moteus-protocol",
+        "@crate_index//:serialport",
+    ],
+)
+
+# Library with clap support for CLI applications
+rust_library(
+    name = "moteus_clap",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_name = "moteus",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=feature=\"clap\"",
+        "--cfg=feature=\"serialport\"",
+        "-D", "warnings",
+    ],
+    proc_macro_deps = [
+        "//lib/rust/moteus-derive",
+    ],
+    deps = [
+        "//lib/rust/moteus-protocol",
+        "@crate_index//:clap",
+        "@crate_index//:serialport",
+    ],
+)
+
+# Library with tokio support for true async I/O
+rust_library(
+    name = "moteus_tokio",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_name = "moteus",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=feature=\"serialport\"",
+        "--cfg=feature=\"tokio\"",
+        "-D", "warnings",
+    ],
+    proc_macro_deps = [
+        "//lib/rust/moteus-derive",
+    ],
+    deps = [
+        "//lib/rust/moteus-protocol",
+        "@crate_index//:serialport",
+        "@crate_index//:tokio",
+        "@crate_index//:tokio-serial",
+    ],
+)
+
+# Library with both clap and tokio support
+rust_library(
+    name = "moteus_clap_tokio",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_name = "moteus",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=feature=\"clap\"",
+        "--cfg=feature=\"serialport\"",
+        "--cfg=feature=\"tokio\"",
+        "-D", "warnings",
+    ],
+    proc_macro_deps = [
+        "//lib/rust/moteus-derive",
+    ],
+    deps = [
+        "//lib/rust/moteus-protocol",
+        "@crate_index//:clap",
+        "@crate_index//:serialport",
+        "@crate_index//:tokio",
+        "@crate_index//:tokio-serial",
+    ],
+)
+
+# Library variant that also exposes the runnable example bodies (the
+# `examples` module).  This is what the example binaries in //lib/rust
+# link against, and what out-of-tree transports (e.g. pi3hat) reuse.
+rust_library(
+    name = "moteus_examples",
+    srcs = glob(["src/**/*.rs"]),
+    compile_data = ["README.md"],
+    crate_name = "moteus",
+    edition = "2021",
+    rustc_flags = [
+        "--cfg=feature=\"clap\"",
+        "--cfg=feature=\"examples\"",
+        "--cfg=feature=\"serialport\"",
+        "--cfg=feature=\"tokio\"",
+        "-D", "warnings",
+    ],
+    proc_macro_deps = [
+        "//lib/rust/moteus-derive",
+    ],
+    deps = [
+        "//lib/rust/moteus-protocol",
+        "@crate_index//:clap",
+        "@crate_index//:serialport",
+        "@crate_index//:tokio",
+        "@crate_index//:tokio-serial",
+    ],
+)
+
+rust_test(
+    name = "moteus-test",
+    crate = ":moteus",
+    edition = "2021",
+    # rust_test does not inherit the crate's rustc_flags, so the feature
+    # cfgs must be repeated here or feature-gated code is compiled out of
+    # the test build.
+    crate_features = [
+        "serialport",
+    ],
+    size = "small",
+)
+
+rust_clippy(
+    name = "moteus-clippy",
+    deps = [":moteus"],
+)
+
+rust_doc_test(
+    name = "moteus-doc-test",
+    crate = ":moteus",
+    # rust_doc_test does not inherit the crate's rustc_flags, so the
+    # feature cfgs must be repeated here or rustdoc will silently skip
+    # every feature-gated doctest.
+    crate_features = [
+        "serialport",
+    ],
+    size = "small",
+)
+
+rust_doc_test(
+    name = "moteus-doc-test-all-features",
+    crate = ":moteus_clap_tokio",
+    # rust_doc_test does not inherit the crate's rustc_flags, so the
+    # feature cfgs must be repeated here or rustdoc will silently skip
+    # every feature-gated doctest.
+    crate_features = [
+        "clap",
+        "serialport",
+        "tokio",
+    ],
+    size = "small",
+)
+
+rust_doc(
+    name = "moteus-doc",
+    crate = ":moteus_clap_tokio",
+    # As with the doc tests above, the feature cfgs must be repeated or
+    # the generated documentation omits all feature-gated modules.
+    crate_features = [
+        "clap",
+        "serialport",
+        "tokio",
+    ],
+    rustdoc_flags = ["-D", "warnings"],
+)

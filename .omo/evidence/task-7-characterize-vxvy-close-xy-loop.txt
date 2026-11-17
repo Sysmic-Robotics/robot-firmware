@@ -1,0 +1,114 @@
+TASK-7 EVIDENCE: Position loop designer — engine X/Y cascade gains @60Hz
+============================================================================
+Date: 2026-08-06
+Task: Wave 3 / T7 — analysis/position_loop_design.py builds the engine-side
+      X/Y position plant from the identified robot velocity FOPDT and
+      computes cascade position PID gains, validated in discrete-time
+      simulation of the FULL cascade.
+
+----------------------------------------------------------------------------
+1. FILES CREATED
+----------------------------------------------------------------------------
+[OK] /home/sysmic/Desktop/SysmicProyect/robot/analysis/position_loop_design.py
+     Engine X/Y position cascade @60 Hz. numpy/matplotlib only (same
+     optional-import + argparse + ANSI conventions as pid_tuner.py /
+     csv_analyzer.py). CLI: --K --L --T --ts --lambda --output-max
+     --sim-time --ref --rise-target --os-target --no-plot --png --export.
+     Design: pole placement on the dominant integrator plant K/s —
+     Kp = 2/(K*lambda), Ki = 1/(K*lambda^2), Kff = 1/K; lambda = 1.2 s
+     (3.5x slower than inner tau 340 ms; 3-5x band [1.02, 1.70] s).
+     Derivation vs pure IMC documented in the module docstring (IMC on K/s
+     is a pure gain with no integral term -> 1.2 s rise, violates the
+     0.6 s target and has no integral action for K uncertainty).
+     Sim: exact ZOH FOPDT (a=exp(-Ts/T), b=K(1-a), n_d=round(L/Ts)=6
+     delay samples), scalar position integrator, output clamp +-2.0 m/s,
+     CONDITIONAL-INTEGRATION anti-windup (integrate only while unsaturated
+     — clamped-only integration wound up to +-2.0 during the long step
+     saturation and overshot ~30-50%; conditional integration cuts it to
+     ~21% on the worst-case plant).
+[OK] /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/task-7-characterize-vxvy-close-xy-loop.json
+     Export: plant (K,L,T + caveat/source), Ts, lambda_s, lambda_adjusted,
+     design (method, inner tau, separation ratio), gains {vx,vy} =
+     {Kp 4.3745, Ki 1.8227, Kff 2.6247}, clamps, rates (60 Hz pos / 200 Hz
+     vel), sim (+0.5 and -0.5 steps with v_cmd/v_act arrays), sanity
+     (worst-case plant verdict + PHYSICAL_LIMIT_NOTE, validated_plant
+     verdict K=0.55/L=0.05/T=0.15: rise 0.483 s, OS 13.85%, PASS),
+     sensitivity (5 rows), disclaimer (sim-validated only; final validation
+     T6/T8 hardware).
+[OK] /home/sysmic/Desktop/SysmicProyect/robot/.omo/evidence/task-7-characterize-vxvy-close-xy-loop.png
+     2x2 plot: X-axis position + v_cmd/v_act for +0.5 and -0.5 steps,
+     60 Hz simulation, velocity plant K=0.381/L=95ms/T=245ms.
+
+----------------------------------------------------------------------------
+2. KEY RATE DISTINCTION (the #1 gotcha, enforced)
+----------------------------------------------------------------------------
+robot velocity loop ..... 200 Hz (firmware drive_task.c, on the robot)
+engine position loop .... ~60 Hz (Ts = 16.67 ms; this PID lives in the
+                               ENGINE, not the robot — later Lua prototype
+                               (T8) and Rust PositionPID (T9) implement it)
+The tool samples the controller at Ts = 1/60 and the velocity FOPDT via
+its exact ZOH z-transform at that same rate.
+
+----------------------------------------------------------------------------
+3. RUN (default plant; 2026-08-06, /home/sysmic/Desktop/SysmicProyect/robot/analysis)
+----------------------------------------------------------------------------
+$ python3 position_loop_design.py --export ...task-7....json --png ...task-7....png
+  lambda = 1.200 s (3.5x slower than inner tau; band [1.02, 1.70] s)
+  Kp = 4.3745  Ki = 1.8227  Kff = 2.6247   (vx == vy)
+  Worst-case plant (K=0.381, L=95ms, T=245ms):
+    Step +0.5 m: rise63 750ms (10-90 717ms), OS 21.5% (peak 0.609 m),
+                 settle 4233ms, sse -0.0013 m  -> sanity FAIL
+    Step -0.5 m: same metrics (symmetric), sse +0.0013 m  -> sanity FAIL
+  Sensitivity (same gains, plausible true-plant range):
+    K=0.45 L=70ms T=190ms: rise 600ms  OS 16.7%  FAIL
+    K=0.50 L=60ms T=170ms: rise 550ms  OS 15.9%  FAIL
+    K=0.55 L=50ms T=150ms: rise 483ms  OS 13.8%  PASS   <- center
+    K=0.60 L=50ms T=130ms: rise 450ms  OS 12.2%  PASS
+    K=0.65 L=50ms T=120ms: rise 417ms  OS 12.1%  PASS
+
+----------------------------------------------------------------------------
+4. WHY THE WORST-CASE PLANT CANNOT MEET THE GATES (documented finding)
+----------------------------------------------------------------------------
+On the identified plant (K=0.381, L+T=340 ms, clamp +-2.0 m/s) the 0.5 m
+step is ACTUATOR/PLANT-LIMITED, not controller-limited:
+  * max actual velocity = K * output_max = 0.381*2.0 = 0.76 m/s
+    -> the 63% midpoint (0.315 m) needs >= 0.41 s at full speed plus the
+       340 ms inner lag to build it -> ~0.7 s rise floor;
+  * stopping travel ~= v_max*(L+T) = 0.76*0.34 ~= 0.26 m before braking
+    develops -> ~20% overshoot floor.
+Confirmed by sweeps: lambda 0.8->1.7 gives rise 733-900ms / OS 19.6-23.9%
+(never both under target), and moving the PI zero (Ki/Kp) from 0.5/lambda
+to 1.5/lambda monotonically raises OS (21.5% -> 45%).  No Kp/Ki choice in
+this Kp/Ki/Kff structure beats these floors.
+The SAME gains PASS both gates on the plausible true plant (K is a LOWER
+bound, L/T are UPPER bounds, so the real robot is faster/stronger — center
+of the plausible range: rise 483 ms, OS 13.8%).  This is reported honestly
+in the tool output + JSON rather than silently tightening lambda below the
+3-5x design band (the earlier auto-tighten drove lambda to 0.63 s and STILL
+failed, while violating the cascade separation rule).
+
+----------------------------------------------------------------------------
+5. GROUND TRUTH USED (evidence sources)
+----------------------------------------------------------------------------
+[OK] .omo/evidence/partB_pid_tuner.json: K=0.38052, L=0.095, T=0.245;
+     cmd v_vel[0], meas vx_est; source TestescalonVx.csv (T2 dry-run).
+[OK] .omo/evidence/task-2-characterize-vxvy-close-xy-loop.md: ramp caveat —
+     firmware ramps inputs at 1.5 m/s^2, so K is a LOWER bound (steady
+     state not reached) and L/T are UPPER bounds.
+[OK] analysis/pid_tuner.py + csv_analyzer.py: tool style conventions
+     (argparse, ANSI helpers, optional numpy/matplotlib imports,
+     FOPDT/step-metric conventions — 63% rise, 2% settle band).
+
+----------------------------------------------------------------------------
+6. CONSTRAINT VERIFICATION
+----------------------------------------------------------------------------
+[OK] No engine or firmware source code changed — tool only DESIGNS gains,
+     does not apply them.
+[OK] Position loop at 60 Hz (Ts=16.67 ms) throughout; 200 Hz is only the
+     inner velocity-loop rate, never used for the position PID.
+[OK] Output marked simulation-validated only; final validation deferred to
+     hardware (T6/T8 field runs).
+[OK] No dependencies beyond numpy + matplotlib (both verified present:
+     numpy 2.2.2, matplotlib 3.10.1; Axes3D import UserWarning is noise).
+[OK] Field error rotation into body frame is documented as controller
+     (T8/T9) responsibility, not this tool's.

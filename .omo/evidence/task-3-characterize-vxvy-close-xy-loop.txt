@@ -1,0 +1,47 @@
+=============================================================
+ EVIDENCE — Task 3: Per-axis PID passthrough enable gates
+ Date: 2026-08-06T15:23:40-04:00   Robot: STM32F767ZI / FreeRTOS / 200Hz drive loop
+=============================================================
+
+--- 1. FLAG DEFINITIONS (default 1) in Core/Src/system_globals.c ---
+42:uint8_t pid_vx_enable = 1;
+43:uint8_t pid_vy_enable = 1;
+44:uint8_t pid_vth_enable = 1;
+
+--- 2. EXTERN DECLARATIONS in Core/Inc/system_globals.h ---
+99:extern uint8_t pid_vx_enable;
+100:extern uint8_t pid_vy_enable;
+101:extern uint8_t pid_vth_enable;
+
+--- 3. GATING in Core/Src/drive_task.c (within robot_pid_enable block) ---
+252:            float vx_cmd = v_vel[0];
+253:            float vy_cmd = v_vel[1];
+254:            float vth_cmd = v_vel[2];
+281:                if (pid_vx_enable)
+284:                    PID_CloseLoop(&pid_vx, vx_cmd, vx_meas);
+289:                    vx_cmd = v_vel[0];
+292:                if (pid_vy_enable)
+295:                    PID_CloseLoop(&pid_vy, vy_cmd, vy_meas);
+300:                    vy_cmd = v_vel[1];
+304:                if (pid_vth_enable)
+306:                    PID_CloseLoop(&pid_theta, vth_cmd, theta_est);
+318:                    vth_cmd = v_vel[2];
+
+--- 4. BUILD RESULT ---
+Build entry: STM32CubeIDE managed project (robot-firmware.ioc at repo root).
+No Makefile present under robot/ (checked maxdepth 3, incl. Core/).
+arm-none-eabi-gcc: NOT FOUND (searched PATH, /opt, /usr/local, /home/sysmic, ~/.local)
+RESULT: ARM TOOLCHAIN NOT PRESENT - OPERATOR MUST BUILD/FLASH; CODE REVIEW PERFORMED INSTEAD
+Manual review performed: brace balance OK ({==} in drive_task.c 33/33, system_globals.c OK);
+  types uint8_t via stdint.h (included through system_globals.h); PID_CloseLoop(&h,set,meas)
+  matches existing call sites; vx_meas/vy_meas still used in enabled branch (no unused-var);
+  watchdog/rate-limiters/kinematic matrix/wheel PID/DAC untouched; no name collisions.
+
+--- 5. DIFF SUMMARY vs .omo/backups ---
+backups: .omo/backups/{drive_task.c.bak, system_globals.c.bak, system_globals.h.bak}
+system_globals.c: +7 lines  (3 new uint8_t globals, default 1, + comment)
+system_globals.h: +6 lines  (3 extern declarations + comment)
+drive_task.c:     +23/-13 lines (vx/vy/vth axes wrapped in enable gates;
+                  integral-reset kept inside enabled branch; passthrough = raw v_vel)
+Unchanged: PID gains/sample times/integral limits, robot_pid_enable, watchdog,
+  Tools/PID, motor.c, kinematic constants, radio parsing.
