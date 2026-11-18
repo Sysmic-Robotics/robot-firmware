@@ -1,5 +1,6 @@
 #include "system_globals.h"
 #include "drive_task.h"
+#include "board.h"
 #include "motor.h"
 #include "MAX581x.h"
 #include <math.h>

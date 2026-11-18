@@ -239,7 +239,7 @@ void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
@@ -255,8 +255,7 @@ void MX_SPI1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI1_Init 2 */
-	//LL_SPI_WriteReg(SPI1, CR2, SPI_CR2_FRXTH_Msk);
-	WRITE_REG(hspi1.Instance->CR2, SPI_CR2_FRXTH_Msk);
+  /* HAL_SPI_Init configures the RX FIFO threshold for 8-bit transfers. */
   /* USER CODE END SPI1_Init 2 */
 
 }
