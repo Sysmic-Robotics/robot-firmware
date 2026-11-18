@@ -105,6 +105,8 @@ El diseño de hardware está orientado a robots móviles de competencia (ej. fú
 
 Proyecto académico de **Sysmic Robotics**. Uso restringido a fines educativos e investigación.
 
-## Configuraci?n CubeMX
+## Desarrollo con STM32CubeIDE
 
-El proyecto mantiene la inicializaci?n de perif?ricos en `Core/Src/system_init.c` y el arranque de tareas en `Core/Src/main.c`. El `.ioc` documenta la configuraci?n de los perif?ricos activos; UART5 y DMA no se arrancan porque no se usan. La generaci?n autom?tica de c?digo desde este `.ioc` no est? validada para esta estructura separada y puede reemplazar c?digo de arranque. Conservar una copia o usar control de versiones, generar en un proyecto temporal y revisar el diff antes de incorporar cambios.
+Importar la carpeta como proyecto existente en STM32CubeIDE y compilar la configuracion Debug o Release. El codigo fuente es la referencia para la configuracion: las inicializaciones de perifericos estan en `Core/Src/system_init.c` y el arranque de tareas en `Core/Src/main.c`. UART5 y su DMA no se arrancan porque no se usan.
+
+El archivo `.ioc` se conserva como referencia historica. No usar CubeMX para regenerar el proyecto: la estructura actual se mantiene directamente en codigo y la regeneracion puede sobrescribirla. STM32CubeIDE se usa para editar, compilar y depurar sin regenerar codigo.
