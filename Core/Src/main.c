@@ -48,13 +48,9 @@ int main(void)
     MX_TIM5_Init();
     MX_TIM8_Init();
     MX_I2C3_Init();
-    MX_UART5_Init();
 
-    // AGREGAR: Inicialización explícita de motores
-    Motor_Init(&motor[0], 0, MOTOR_STATUS_DISABLE);  // ← DISABLE al inicio
-    Motor_Init(&motor[1], 1, MOTOR_STATUS_DISABLE);
-    Motor_Init(&motor[2], 2, MOTOR_STATUS_DISABLE);
-    Motor_Init(&motor[3], 3, MOTOR_STATUS_DISABLE);
+    /* GPIO initialization keeps motor outputs disabled until DriveFunction
+       assigns their pins and initializes the motor handlers. */
 
     kinematic[0][0] = -sin(WHEEL_ANGlE_1); kinematic[0][1] = cos(WHEEL_ANGlE_1); kinematic[0][2] = ROBOT_RADIO;
     kinematic[1][0] = -sin(WHEEL_ANGlE_2); kinematic[1][1] = cos(WHEEL_ANGlE_2); kinematic[1][2] = ROBOT_RADIO;

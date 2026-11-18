@@ -19,13 +19,13 @@ void RadioFunction(void const * argument) {
     nRF24_SetAddr(&nrf_device, nRF24_PIPE0, rx_node_addr);
     nRF24_SetRFChannel(&nrf_device, nRF24L01_SYSMIC_CHANNEL);
     nRF24_SetRXPipe(&nrf_device, nRF24_PIPE0, nRF24_AA_OFF, 30);
-    nRF24_SetPowerMode(&nrf_device, nRF24_PWR_UP);
     nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
-    nRF24_RX_ON(&nrf_device);
     memset(nrf_device.rx_data, 0, 32);
-    nRF24_DisableAA(&nrf_device, nRF24_PIPETX);
     tx_node_addr[4] = Board_GetID();
     nRF24_SetAddr(&nrf_device, nRF24_PIPETX, tx_node_addr);
+    nRF24_SetPowerMode(&nrf_device, nRF24_PWR_UP);
+    HAL_Delay(2); /* nRF24 power-down to standby: allow at least 1.5 ms. */
+    nRF24_RX_ON(&nrf_device);
     nrf_config = nRF24_GetConfig(&nrf_device);
 
     // --- Bucle principal de la tarea ---

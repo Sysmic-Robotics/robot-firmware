@@ -87,11 +87,10 @@ void nRF24_WriteMBReg(nRF24_Handler_t *device, uint8_t reg, uint8_t *pBuf, uint8
 void nRF24_Init(nRF24_Handler_t *device) {
   /* Write to registers their initial values */
   nRF24_WriteReg(device, nRF24_REG_CONFIG, 0x08);
-  nRF24_WriteReg(device, nRF24_REG_EN_AA, 0x3F);
-  nRF24_WriteReg(device, nRF24_REG_EN_RXADDR, 0x03);
+  nRF24_WriteReg(device, nRF24_REG_EN_AA, 0x00);
+  nRF24_WriteReg(device, nRF24_REG_EN_RXADDR, 0x00);
   nRF24_WriteReg(device, nRF24_REG_SETUP_AW, 0x03);
   nRF24_WriteReg(device, nRF24_REG_SETUP_RETR, 0x03);
-  nRF24_WriteReg(device, nRF24_REG_RF_CH, 0x02);
   nRF24_WriteReg(device, nRF24_REG_RF_SETUP, 0x0E);
   nRF24_WriteReg(device, nRF24_REG_STATUS, 0x00);
   nRF24_WriteReg(device, nRF24_REG_RX_PW_P0, 0x00);

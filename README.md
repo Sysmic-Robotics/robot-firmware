@@ -104,3 +104,7 @@ El diseño de hardware está orientado a robots móviles de competencia (ej. fú
 ## Licencia
 
 Proyecto académico de **Sysmic Robotics**. Uso restringido a fines educativos e investigación.
+
+## Configuraci?n CubeMX
+
+El proyecto mantiene la inicializaci?n de perif?ricos en `Core/Src/system_init.c` y el arranque de tareas en `Core/Src/main.c`. El `.ioc` documenta la configuraci?n de los perif?ricos activos; UART5 y DMA no se arrancan porque no se usan. La generaci?n autom?tica de c?digo desde este `.ioc` no est? validada para esta estructura separada y puede reemplazar c?digo de arranque. Conservar una copia o usar control de versiones, generar en un proyecto temporal y revisar el diff antes de incorporar cambios.
