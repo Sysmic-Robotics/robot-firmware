@@ -17,7 +17,10 @@
 #define VL6180X_THRESHOLD     65 // en mm
 #define VL6180X_SAMPLE_TIME   50
 #define nRF24L01_SYSMIC_CHANNEL 0x6B
-#define RADIO_COMMAND_TIMEOUT_MS 1000U
+#define ROBOT_COUNT           6U    // IDs validos: 0..5 (5 bytes por robot en el paquete de 30)
+#define RADIO_COMMAND_TIMEOUT_MS 200U // 12 comandos perdidos a 60 Hz
+#define RADIO_TELEMETRY_SLOT_MS  2U   // Robot k responde (k + 1) * 2 ms despues del comando
+#define RADIO_TX_TIMEOUT_MS      2U
 #define DRIBBLER_LEVEL_COUNT 7U
 
 // Estados del kicker

@@ -14,21 +14,30 @@
 #endif
 
 int fokk = 0;
-void RadioFunction(void const * argument) {
-    // --- Inicialización del módulo nRF24 ---
-    nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
+
+#define RADIO_RX_CONFIG (nRF24_CONFIG_PWR_UP | nRF24_CONFIG_PRIM_RX)
+
+static void Radio_Configure(void)
+{
+    nRF24_RX_OFF(&nrf_device);
     nRF24_Init(&nrf_device);
+    nRF24_SetCRCScheme(&nrf_device, nRF24_CRC_2byte); /* Debe coincidir con la base station. */
     nRF24_SetAddr(&nrf_device, nRF24_PIPE0, rx_node_addr);
     nRF24_SetRFChannel(&nrf_device, nRF24L01_SYSMIC_CHANNEL);
     nRF24_SetRXPipe(&nrf_device, nRF24_PIPE0, nRF24_AA_OFF, 30);
     nRF24_SetOperationalMode(&nrf_device, nRF24_MODE_RX);
-    memset(nrf_device.rx_data, 0, 32);
-    tx_node_addr[4] = Board_GetID();
     nRF24_SetAddr(&nrf_device, nRF24_PIPETX, tx_node_addr);
     nRF24_SetPowerMode(&nrf_device, nRF24_PWR_UP);
-    HAL_Delay(2); /* nRF24 power-down to standby: allow at least 1.5 ms. */
+    osDelay(3); /* nRF24 power-down to standby: allow at least 1.5 ms. */
     nRF24_RX_ON(&nrf_device);
-    nrf_config = nRF24_GetConfig(&nrf_device);
+}
+
+void RadioFunction(void const * argument) {
+    // --- Inicialización del módulo nRF24 ---
+    nRF24_HW_Init(&nrf_device, &hspi1, GPIOG, GPIO_PIN_10, GPIOG, GPIO_PIN_9);
+    memset(nrf_device.rx_data, 0, 32);
+    tx_node_addr[4] = Board_GetID();
+    Radio_Configure();
 
     // --- Bucle principal de la tarea ---
     for (;;) {
@@ -39,6 +48,11 @@ void RadioFunction(void const * argument) {
         nrf_status = nRF24_GetStatus(&nrf_device);
         nrf_config = nRF24_GetConfig(&nrf_device);
 
+        // Una caida de tension reinicia el nRF24 (queda apagado y sin configuracion)
+        if ((nrf_config & RADIO_RX_CONFIG) != RADIO_RX_CONFIG) {
+            Radio_Configure();
+            continue;
+        }
 
         // Si hay datos recibidos
         if (nrf_status & nRF24_FLAG_RX_DR) {
@@ -47,7 +61,8 @@ void RadioFunction(void const * argument) {
             nRF24_RXResult result = nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
             nRF24_FlushRX(&nrf_device);
             nRF24_ClearIRQFlagsRx(&nrf_device);
-            if (result != nRF24_RX_PIPE0 || rx_len != 30U) continue;
+            /* Un ID fuera de 0..5 leeria fuera del paquete: el robot no acepta comandos. */
+            if (result != nRF24_RX_PIPE0 || rx_len != 30U || robot_id >= ROBOT_COUNT) continue;
 
             taskENTER_CRITICAL();
             setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
@@ -57,8 +72,9 @@ void RadioFunction(void const * argument) {
             radio_command_received = 1;
             taskEXIT_CRITICAL();
 
-            //Manda ball_posession solo si se tiene o se tuvo el frame anterior
-            osDelay(robot_id);
+            /* Turnos de telemetria separados 2 ms: absorbe el jitter de 1 ms del sondeo
+               y el robot 5 termina (~13.5 ms) antes del siguiente comando a 60 Hz. */
+            osDelay(RADIO_TELEMETRY_SLOT_MS * (robot_id + 1U));
             updateBuffer(txBuffer); // 0 usa ball_posession
             Radio_SendPacket(&nrf_device, txBuffer, 32);
         
@@ -73,9 +89,9 @@ void updateBuffer(uint8_t *buffer) {
     memset(&buffer[0], 0, 32);
 
     
-    // Set first byte: bits 0-2 = robot_id (3 bits), bit 3 = ball_possession (1 bit), bits 4-7 = 0
+    // Set first byte: bits 5-7 = robot_id (3 bits), bit 0 = ball_possession, bits 1-4 = 0
     uint8_t id_bits = (robot_id << 5); // 3 bits for robot_id
-    uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 3
+    uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 0
     buffer[0] = id_bits | ball_bit;
 
     memcpy(&buffer[1], &ball_range, sizeof(uint16_t));
@@ -107,9 +123,11 @@ void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
     nRF24_WritePayload(device, device->tx_data, Len);
     nRF24_CE_State(device, GPIO_PIN_SET);
 
-    while (!(nrf_status & (nRF24_FLAG_TX_DS))) {
+    /* Espera acotada: un nRF24 reiniciado nunca levanta TX_DS. */
+    uint32_t start = HAL_GetTick();
+    do {
         nrf_status = nRF24_GetStatus(device);
-    }
+    } while (!(nrf_status & nRF24_FLAG_TX_DS) && (HAL_GetTick() - start) < RADIO_TX_TIMEOUT_MS);
 
     nRF24_ClearIRQFlagsTx(device);
     nRF24_FlushTX(device);
@@ -122,16 +140,10 @@ void nRF24_TxPacket(nRF24_Handler_t *device, uint8_t* Buf, uint32_t Len)
 void Radio_SendPacket(nRF24_Handler_t *device, uint8_t *buffer, uint8_t len) {
     nRF24_RX_OFF(device);
     nRF24_SetOperationalMode(device, nRF24_MODE_TX);
-    while (nrf_config & nRF24_CONFIG_PRIM_RX) {
-        nrf_config = nRF24_GetConfig(device);
-    }
     nRF24_TxPacket(device, buffer, len);
 
     // --- Regreso a modo RX ---
+    /* No se limpia RX_DR: un comando recibido durante el turno se procesa en la siguiente vuelta. */
     nRF24_SetOperationalMode(device, nRF24_MODE_RX);
-    while (!(nrf_config & nRF24_CONFIG_PRIM_RX)) {
-        nrf_config = nRF24_GetConfig(device);
-    }
     nRF24_RX_ON(device);
-    nRF24_ClearIRQFlags(device);
 }

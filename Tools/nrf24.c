@@ -416,22 +416,16 @@ void nRF24_ClearIRQFlags(nRF24_Handler_t *device) {
   nRF24_WriteReg(device, nRF24_REG_STATUS, reg);
 }
 
+/* STATUS IRQ bits are write-1-to-clear: writing only the wanted mask leaves the
+   other flags pending (a read-modify-write would clear them too). */
 void nRF24_ClearIRQFlagsTx(nRF24_Handler_t *device) {
-  uint8_t reg;
-
   /* Clear TX_DS and MAX_RT bits of the STATUS register */
-  reg  = nRF24_ReadReg(device, nRF24_REG_STATUS);
-  reg |= nRF24_MASK_STATUS_IRQ_TX;
-  nRF24_WriteReg(device, nRF24_REG_STATUS, reg);
+  nRF24_WriteReg(device, nRF24_REG_STATUS, nRF24_MASK_STATUS_IRQ_TX);
 }
 
 void nRF24_ClearIRQFlagsRx(nRF24_Handler_t *device) {
-  uint8_t reg;
-
-  /* Clear RX_DRbits of the STATUS register */
-  reg  = nRF24_ReadReg(device, nRF24_REG_STATUS);
-  reg |= nRF24_MASK_STATUS_IRQ_RX;
-  nRF24_WriteReg(device, nRF24_REG_STATUS, reg);
+  /* Clear RX_DR bit of the STATUS register */
+  nRF24_WriteReg(device, nRF24_REG_STATUS, nRF24_MASK_STATUS_IRQ_RX);
 }
 
 void nRF24_WritePayload(nRF24_Handler_t *device, uint8_t *pBuf, uint8_t length) {
