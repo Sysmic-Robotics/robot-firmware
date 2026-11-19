@@ -14,8 +14,14 @@
 #define VL6180X_REG_SYSTEM_FRESH_OUT_OF_RESET 0x016
 ///! Trigger Ranging
 #define VL6180X_REG_SYSRANGE_START 0x018
+///! Max time a range measurement may run before it is aborted [ms]
+#define VL6180X_REG_SYSRANGE_MAX_CONVERGENCE_TIME 0x01C
 ///! Part to part range offset
 #define VL6180X_REG_SYSRANGE_PART_TO_PART_RANGE_OFFSET 0x024
+
+#define VL6180X_MAX_CONVERGENCE_MS 5    ///< Worst-case measurement ~12.5 ms (> 60 Hz)
+#define VL6180X_TIMEOUT_MS         100U ///< Give up waiting for the sensor after this
+#define VL6180X_RANGE_INVALID      255  ///< Reported when the sensor does not answer
 ///! Trigger Lux Reading
 #define VL6180X_REG_SYSALS_START 0x038
 ///! Lux reading gain

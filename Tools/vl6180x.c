@@ -20,8 +20,11 @@ uint8_t VL6180X_Read8(VL6180X_Handler_t* device, uint16_t command) {
   device->txBuffer[1] = (uint8_t)(command & 0xFF);
   uint8_t send_address = device->i2cAddress << 1;
 
-  HAL_I2C_Master_Transmit(device->i2cHandler, send_address, device->txBuffer, 2, 1000);
-  HAL_I2C_Master_Receive(device->i2cHandler, send_address, device->rxBuffer, 1, 1000);
+  /* On a bus error return 0 instead of the stale buffer, so status polls never see a false flag */
+  if (HAL_I2C_Master_Transmit(device->i2cHandler, send_address, device->txBuffer, 2, 1000) != HAL_OK ||
+      HAL_I2C_Master_Receive(device->i2cHandler, send_address, device->rxBuffer, 1, 1000) != HAL_OK) {
+    return 0;
+  }
   return device->rxBuffer[0];
 }
 
@@ -69,6 +72,10 @@ bool VL6180X_Init(VL6180X_Handler_t *device, I2C_HandleTypeDef *i2cHandler, uint
     VL6180X_LoadSettings(device);
     VL6180X_Write8(device, VL6180X_REG_SYSTEM_FRESH_OUT_OF_RESET, 0x00);
   }
+
+  /* Written on every init (not only fresh out of reset) so it also applies after reflashing.
+     Bounds a measurement to ~3.2 + 5 + 4.3 ms when nothing converges (default max is 49 ms). */
+  VL6180X_Write8(device, VL6180X_REG_SYSRANGE_MAX_CONVERGENCE_TIME, VL6180X_MAX_CONVERGENCE_MS);
 
   return true;
 }
@@ -148,18 +155,27 @@ void VL6180X_LoadSettings(VL6180X_Handler_t *device) {
 */
 /**************************************************************************/
 
+// Poll a status bit with a deadline, so a missing or hung sensor cannot block the task forever
+static bool VL6180X_WaitFlag(VL6180X_Handler_t *device, uint16_t reg, uint8_t mask) {
+  uint32_t start = HAL_GetTick();
+  while (!(VL6180X_Read8(device, reg) & mask)) {
+    if (HAL_GetTick() - start >= VL6180X_TIMEOUT_MS) return false;
+  }
+  return true;
+}
+
 uint8_t VL6180X_ReadRange(VL6180X_Handler_t *device) {
   // wait for device to be ready for range measurement
-  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_STATUS) & 0x01));
+  if (!VL6180X_WaitFlag(device, VL6180X_REG_RESULT_RANGE_STATUS, 0x01)) return VL6180X_RANGE_INVALID;
 
   // Start a range measurement
   VL6180X_Write8(device, VL6180X_REG_SYSRANGE_START, 0x01);
 
-  // Poll until bit 2 is set
-  while (!(VL6180X_Read8(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO) & 0x04));
+  // Poll until bit 2 is set; on timeout report "no target" (far away) instead of a stale value
+  bool done = VL6180X_WaitFlag(device, VL6180X_REG_RESULT_INTERRUPT_STATUS_GPIO, 0x04);
 
   // read range in mm
-  uint8_t range = VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_VAL);
+  uint8_t range = done ? VL6180X_Read8(device, VL6180X_REG_RESULT_RANGE_VAL) : VL6180X_RANGE_INVALID;
 
   // clear interrupt
   VL6180X_Write8(device, VL6180X_REG_SYSTEM_INTERRUPT_CLEAR, 0x07);
