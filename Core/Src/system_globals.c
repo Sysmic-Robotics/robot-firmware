@@ -2,6 +2,8 @@
 
 // ===================== RADIO TASK =====================
 uint16_t robot_id = 0;
+volatile uint32_t radio_last_command_ms = 0;
+volatile uint8_t radio_command_received = 0;
 uint8_t txBuffer[32] = {'R','a','d','i','o',' ','O','N','\n'};
 uint8_t rxBuffer[32] = {0};
 uint8_t rx_len = 0;

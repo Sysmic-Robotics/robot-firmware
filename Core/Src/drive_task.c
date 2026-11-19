@@ -3,6 +3,8 @@
 #include "board.h"
 #include "motor.h"
 #include "MAX581x.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <math.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -27,6 +29,35 @@
 #define KICKER_START 2
 #endif
 
+/* Latest commanded velocity; written by the radio task under a critical section. */
+static float target_velocity[3];
+
+static void updateVelocity(float dt)
+{
+    float target[3];
+    taskENTER_CRITICAL();
+    for (uint8_t i = 0; i < 3; ++i) target[i] = target_velocity[i];
+    taskEXIT_CRITICAL();
+    float dx = target[0] - v_vel[0];
+    float dy = target[1] - v_vel[1];
+    float delta = sqrtf(dx * dx + dy * dy);
+    float max_delta = ROBOT_MAX_LINEAR_ACC * dt;
+    if (delta > max_delta && delta > 0.0f) {
+        float scale = max_delta / delta;
+        dx *= scale;
+        dy *= scale;
+    }
+    v_vel[0] += dx;
+    v_vel[1] += dy;
+    v_vel[2] = target[2];
+    for (uint8_t i = 0; i < 4; ++i) {
+        float wheel = 0.0f;
+        for (uint8_t j = 0; j < 3; ++j) wheel += kinematic[i][j] * v_vel[j];
+        direction[i] = wheel > 0 ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
+        speed[i] = wheel;
+    }
+}
+
 void DriveFunction(void const * argument)
 {
     // Init PID sampler
@@ -46,7 +77,7 @@ void DriveFunction(void const * argument)
     MAX581x_Handler_t dribblerDAC;
     MAX581x_Init(&dribblerDAC, &hi2c2, MAX581x_REF_20);
     MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, 0.0);
-    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_7, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_6, GPIO_PIN_SET);
 
@@ -116,7 +147,7 @@ void DriveFunction(void const * argument)
     // Enable motors and disable brake
     for (uint8_t i = 0; i < 4; i++)
     {
-        Motor_Init(&motor[i], i, MOTOR_STATUS_ENABLE);
+        Motor_Init(&motor[i], i, MOTOR_STATUS_DISABLE);
         Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
         PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
 
@@ -124,24 +155,59 @@ void DriveFunction(void const * argument)
         motor[i].speedDeadband = WHEEL_MAX_SPEED_RAD * 0.005f;
     }
 
-    // Infinite loop
-    for(;;)
+    timeToWait = osKernelSysTick();
+    uint32_t last_control_ms = HAL_GetTick();
+    uint8_t active = 0;
+    for (;;)
     {
-        for (uint8_t i = 0; i < 4; i++)
-        {
-            // Execute open loop (Motor_OLDrive) or closed loop (Motor_CLDrive) routine
-            Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
-            // TODO: make dribbler files, variable speeds
-            MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler_sel]);
+        uint32_t now = HAL_GetTick();
+        uint32_t elapsed = now - last_control_ms;
+        last_control_ms = now;
+        /* Avoid a large step after a delayed control iteration. */
+        if (elapsed > 50U) elapsed = 50U;
+        taskENTER_CRITICAL();
+        uint32_t check_time = HAL_GetTick();
+        uint8_t valid = radio_command_received &&
+                        (uint32_t)(check_time - radio_last_command_ms) < RADIO_COMMAND_TIMEOUT_MS;
+        if (!valid) {
+            radio_command_received = 0;
+            dribbler_sel = 0;
+            kick_sel = 0;
+            for (uint8_t i = 0; i < 3; ++i) target_velocity[i] = 0.0f;
         }
+        uint8_t dribbler = dribbler_sel;
+        taskEXIT_CRITICAL();
 
-        if(kick_sel && kick_flag == KICKER_CHARGED) {
-            osMutexWait(kickFlagHandle, osWaitForever);
-            kick_flag = KICKER_START;
-            osMutexRelease(kickFlagHandle);
-            osMessagePut(kickQueueHandle, 0, 0);
+        if (!valid) {
+            if (active) {
+                for (uint8_t i = 0; i < 4; ++i) Motor_Enable(&motor[i], MOTOR_STATUS_DISABLE);
+                HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_RESET);
+                for (uint8_t i = 0; i < 4; ++i) {
+                    speed[i] = 0.0f;
+                    motor[i].pid.integral = 0.0f;
+                    motor[i].pid.lastMeasure = 0.0f;
+                    MAX581x_Code(&driveDAC, i, 0);
+                }
+                for (uint8_t i = 0; i < 3; ++i) v_vel[i] = 0.0f;
+                MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, 0);
+                active = 0;
+            }
+        } else {
+            if (!active) {
+                for (uint8_t i = 0; i < 4; ++i) Motor_Enable(&motor[i], MOTOR_STATUS_ENABLE);
+                HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_SET);
+                active = 1;
+            }
+            updateVelocity((float)elapsed / 1000.0f);
+            for (uint8_t i = 0; i < 4; ++i) Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
+            MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler]);
+            if (kick_sel && kick_flag == KICKER_CHARGED) {
+                osMutexWait(kickFlagHandle, osWaitForever);
+                kick_flag = KICKER_START;
+                osMutexRelease(kickFlagHandle);
+                osMessagePut(kickQueueHandle, 0, 0);
+            }
         }
-
         osMessagePut(nrf24CheckHandle, 0, 0);
         osDelayUntil(&timeToWait, (uint32_t)PID_SAMPLE_TIME);
     }
@@ -149,55 +215,21 @@ void DriveFunction(void const * argument)
 
 void setSpeed(uint8_t *buffer, float *velocity, uint8_t *turn)
 {
-
-	/* Last velocities */
-	float prv_Vx = v_vel[0], prv_Vy = v_vel[1];
-	
-	/* Velocities vector: vx, vy and vr respectively */
-	v_vel[0] = (buffer[1] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F))/100.0f  : (float)((uint16_t)(buffer[4] & 0xC0) << 1 | (uint16_t)(buffer[1] & 0x7F))/100.0f ;
-	v_vel[1] = (buffer[2] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x30) << 3 | (uint16_t)(buffer[2] & 0x7F))/100.0f ;
-	v_vel[2] = (buffer[3] & 0x80) ? -(float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F))/100.0f : (float)((uint16_t)(buffer[4] & 0x0F) << 7 | (uint16_t)(buffer[3] & 0x7F))/100.0f ;
-
-
-	/* Limit linear velocity magnitude */
-	float vel_mag = sqrt(v_vel[0]*v_vel[0] + v_vel[1]*v_vel[1]);
-	if (vel_mag > ROBOT_MAX_LINEAR_VEL)
-	{
-	    float scale = ROBOT_MAX_LINEAR_VEL / vel_mag;
-	    v_vel[0] *= scale;
-	    v_vel[1] *= scale;
-	}
-
-	/* Check if acceleration is not too high */
-	float Ax = v_vel[0] - prv_Vx, Ay = v_vel[1] - prv_Vy;
-	float acc_sum = Ax * Ax + Ay * Ay;
-	acc_sum = sqrt(acc_sum);
-	
-	float norm_Ax = Ax / acc_sum, norm_Ay = Ay / acc_sum;
-	
-	if(acc_sum > ROBOT_MAX_LINEAR_ACC)
-	{
-		acc_sum = ROBOT_MAX_LINEAR_ACC;
-		Ax = norm_Ax * acc_sum;
-		Ay = norm_Ay * acc_sum;
-		
-		v_vel[0] = prv_Vx + Ax;
-		v_vel[1] = prv_Vy + Ay;
-	}
-	
-
-	for (uint8_t i = 0; i < 4; i++)
-	{
-		/* Temporal speed variable. Calculate each wheel speed respect to robot kinematic model */
-		float t_vel = 0;
-		for (uint8_t j = 0; j < 3; j++)
-		{
-			t_vel += kinematic[i][j] * v_vel[j];
-		}
-		/* Check velocity direction */
-		turn[i] = (t_vel > 0) ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
-
-		/* Fill speed array. Speed in [m/s] */
-		velocity[i] = t_vel;
-	}
+    (void)velocity;
+    (void)turn;
+    float vx = (float)(((uint16_t)(buffer[4] & 0xC0) << 1) | (buffer[1] & 0x7F)) / 100.0f;
+    float vy = (float)(((uint16_t)(buffer[4] & 0x30) << 3) | (buffer[2] & 0x7F)) / 100.0f;
+    float vr = (float)(((uint16_t)(buffer[4] & 0x0F) << 7) | (buffer[3] & 0x7F)) / 100.0f;
+    if (buffer[1] & 0x80) vx = -vx;
+    if (buffer[2] & 0x80) vy = -vy;
+    if (buffer[3] & 0x80) vr = -vr;
+    float magnitude = sqrtf(vx * vx + vy * vy);
+    if (magnitude > ROBOT_MAX_LINEAR_VEL) {
+        float scale = ROBOT_MAX_LINEAR_VEL / magnitude;
+        vx *= scale;
+        vy *= scale;
+    }
+    target_velocity[0] = vx;
+    target_velocity[1] = vy;
+    target_velocity[2] = vr;
 }

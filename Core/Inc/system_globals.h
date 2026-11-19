@@ -17,6 +17,8 @@
 #define VL6180X_THRESHOLD     65 // en mm
 #define VL6180X_SAMPLE_TIME   50
 #define nRF24L01_SYSMIC_CHANNEL 0x6B
+#define RADIO_COMMAND_TIMEOUT_MS 1000U
+#define DRIBBLER_LEVEL_COUNT 7U
 
 // Estados del kicker
 #define KICKER_DISCHARGED 0x00
@@ -25,6 +27,8 @@
 
 // ===================== VARIABLES GLOBALES =====================
 extern uint16_t robot_id;
+extern volatile uint32_t radio_last_command_ms;
+extern volatile uint8_t radio_command_received;
 
 // --- RADIO TASK ---
 extern uint8_t txBuffer[32];

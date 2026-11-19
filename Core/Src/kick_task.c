@@ -40,7 +40,7 @@ uint8_t getDribbler_speed(uint8_t *buffer)
 	/* Extract info from data packet */
 	uint8_t dribbler_vel = (buffer[0] & 0x1C) >> 2;
 
-	return dribbler_vel;
+	return dribbler_vel < DRIBBLER_LEVEL_COUNT ? dribbler_vel : (DRIBBLER_LEVEL_COUNT - 1U);
 }
 
 uint8_t getKickerStatus(uint8_t *buffer)

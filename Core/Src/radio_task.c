@@ -7,6 +7,8 @@
 #include <string.h>
 #include "kick_task.h"
 #include "drive_task.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -42,13 +44,18 @@ void RadioFunction(void const * argument) {
         if (nrf_status & nRF24_FLAG_RX_DR) {
             // --- Procesamiento de datos recibidos ---
 
-            nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
+            nRF24_RXResult result = nRF24_ReadPayload(&nrf_device, nrf_device.rx_data, &rx_len);
             nRF24_FlushRX(&nrf_device);
             nRF24_ClearIRQFlagsRx(&nrf_device);
+            if (result != nRF24_RX_PIPE0 || rx_len != 30U) continue;
 
+            taskENTER_CRITICAL();
             setSpeed(nrf_device.rx_data + 5 * robot_id, speed, direction);
             dribbler_sel = getDribbler_speed(nrf_device.rx_data + 5 * robot_id);
             kick_sel = getKickerStatus(nrf_device.rx_data + 5 * robot_id);
+            radio_last_command_ms = HAL_GetTick();
+            radio_command_received = 1;
+            taskEXIT_CRITICAL();
 
             //Manda ball_posession solo si se tiene o se tuvo el frame anterior
             osDelay(robot_id);
