@@ -72,13 +72,15 @@ int main(void)
     // Colas de mensajes
     osMessageQDef(kickQueue, 1, uint16_t);
     kickQueueHandle = osMessageCreate(osMessageQ(kickQueue), NULL);
-    osMessageQDef(nrf24Check, 16, uint16_t);
+    // Holgura para el turno de telemetria mas largo (12 ms) sin bloquear driveTask
+    osMessageQDef(nrf24Check, 32, uint16_t);
     nrf24CheckHandle = osMessageCreate(osMessageQ(nrf24Check), NULL);
 
     // Tareas principales del sistema
-    osThreadDef(driveTask, DriveFunction, osPriorityAboveNormal, 0, 128);
+    // drive y radio usan FPU, I2C/SPI bloqueante y cambio de contexto: 128 words quedaba al limite
+    osThreadDef(driveTask, DriveFunction, osPriorityAboveNormal, 0, 256);
     driveTaskHandle = osThreadCreate(osThread(driveTask), NULL);
-    osThreadDef(radioTask, RadioFunction, osPriorityNormal, 0, 128);
+    osThreadDef(radioTask, RadioFunction, osPriorityNormal, 0, 256);
     radioTaskHandle = osThreadCreate(osThread(radioTask), NULL);
     osThreadDef(kickTask, KickFunction, osPriorityLow, 0, 128);
     kickTaskHandle = osThreadCreate(osThread(kickTask), NULL);
@@ -99,10 +101,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 }
 
-// Handler de error simple
+// Estado seguro y reinicio. Tambien lo usan HardFault, configASSERT y el overflow de stack.
 void Error_Handler(void)
 {
-    // Implementar manejo de error si es necesario
+    __disable_irq();
+    // Sin energia en motores, dribbler y kicker antes de reiniciar
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);              // enable motor 1
+    HAL_GPIO_WritePin(GPIOC, GPIO_PIN_11, GPIO_PIN_RESET);              // enable motor 2
+    HAL_GPIO_WritePin(GPIOK, GPIO_PIN_7, GPIO_PIN_RESET);               // enable motor 3
+    HAL_GPIO_WritePin(GPIOF, GPIO_PIN_5 | GPIO_PIN_11, GPIO_PIN_RESET); // enable motor 4, disparo
+    HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_4 | GPIO_PIN_8, GPIO_PIN_RESET);  // carga kicker, dribbler
     NVIC_SystemReset();
 }
 

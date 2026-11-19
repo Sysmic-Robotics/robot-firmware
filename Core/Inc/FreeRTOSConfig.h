@@ -51,6 +51,7 @@
 #if defined(__ICCARM__) || defined(__CC_ARM) || defined(__GNUC__)
   #include <stdint.h>
   extern uint32_t SystemCoreClock;
+  void Error_Handler(void);
 #endif
 #define configENABLE_FPU                         0
 #define configENABLE_MPU                         0
@@ -119,7 +120,9 @@ See http://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html. */
 /* Normal assert() semantics without relying on the provision of an assert.h
 header file. */
 /* USER CODE BEGIN 1 */
-#define configASSERT( x ) if ((x) == 0) {taskDISABLE_INTERRUPTS(); for( ;; );}
+/* Safe state + reset instead of hanging with the motors driven (breakpoint on Error_Handler to debug). */
+#define configASSERT( x ) if ((x) == 0) { Error_Handler(); }
+#define configCHECK_FOR_STACK_OVERFLOW 2
 /* USER CODE END 1 */
 
 /* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS

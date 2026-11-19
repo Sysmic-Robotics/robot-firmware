@@ -55,6 +55,12 @@
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-     
+/* configCHECK_FOR_STACK_OVERFLOW: a task overflowed its stack, memory is no longer trustworthy. */
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+  (void)xTask;
+  (void)pcTaskName;
+  Error_Handler();
+}
 /* USER CODE END Application */
 
