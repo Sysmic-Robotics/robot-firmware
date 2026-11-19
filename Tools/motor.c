@@ -79,6 +79,10 @@ void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake)
 
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
 {
+	/* PID + feedforward can exceed the DAC range; larger codes wrap around in MAX581x_CodeLoad */
+	if(speed > MAX581x_MAX_VAL) speed = MAX581x_MAX_VAL;
+	else if(speed < -MAX581x_MAX_VAL) speed = -MAX581x_MAX_VAL;
+
 	if(speed >= (float)0.0)
 	{
 		HAL_GPIO_WritePin(motorDevice->dirPin.GPIOx, motorDevice->dirPin.GPIO_Pin, GPIO_PIN_SET);

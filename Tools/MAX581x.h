@@ -53,6 +53,9 @@
 #include "stm32f7xx_hal.h"
 #define MAX5815
 
+/* A write takes ~0.1 ms at 400 kHz; a hung transfer must not stall the 1 kHz control loop */
+#define MAX581x_I2C_TIMEOUT_MS          2U
+
 #define MAX581x_ADDRESS                 0x00
 #define MAX581x_WRITE_OPERATION         0x00
 #define MAX581x_READ_OPERATION          0x01

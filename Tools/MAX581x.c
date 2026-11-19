@@ -3,13 +3,13 @@
 void MAX581x_WriteCommand(MAX581x_Handler_t *dacDevice)
 {
 	dacDevice->i2cAddress = (0x10 | MAX581x_ADDRESS) << 1;
-	HAL_I2C_Master_Transmit(dacDevice->i2cHandler, dacDevice->i2cAddress, dacDevice->txBuffer, 3, 1000);
+	HAL_I2C_Master_Transmit(dacDevice->i2cHandler, dacDevice->i2cAddress, dacDevice->txBuffer, 3, MAX581x_I2C_TIMEOUT_MS);
 }
 
 void MAX581x_ReadCommand(MAX581x_Handler_t *dacDevice)
 {
 	dacDevice->i2cAddress = (0x10 | MAX581x_ADDRESS) << 1;
-	HAL_I2C_Master_Transmit(dacDevice->i2cHandler, dacDevice->i2cAddress, dacDevice->txBuffer, 3, 1000);
+	HAL_I2C_Master_Transmit(dacDevice->i2cHandler, dacDevice->i2cAddress, dacDevice->txBuffer, 3, MAX581x_I2C_TIMEOUT_MS);
 }
 
 void MAX581x_Init(MAX581x_Handler_t *dacDevice, I2C_HandleTypeDef *hi2c, uint8_t dacRefSelector)

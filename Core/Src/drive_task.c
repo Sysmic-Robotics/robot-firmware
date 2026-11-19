@@ -194,7 +194,11 @@ void DriveFunction(void const * argument)
             }
         } else {
             if (!active) {
-                for (uint8_t i = 0; i < 4; ++i) Motor_Enable(&motor[i], MOTOR_STATUS_ENABLE);
+                for (uint8_t i = 0; i < 4; ++i) {
+                    /* Descarta las cuentas acumuladas mientras el robot estaba inactivo. */
+                    *motor[i].encoder.count = 0;
+                    Motor_Enable(&motor[i], MOTOR_STATUS_ENABLE);
+                }
                 HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_SET);
                 active = 1;
             }

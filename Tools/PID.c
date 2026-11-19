@@ -36,6 +36,7 @@ void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure)
 	pid->ref = reference;
 	pid->error = pid->ref - measure;
 
+	float prevIntegral = pid->integral;
 	pid->integral += pid->error * pid->params.Ki;
 	if (pid->integral > pid->params.integralMax)
 	{
@@ -48,7 +49,8 @@ void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure)
 	
 	float measDiff = measure - pid->lastMeasure;
 		
-	pid->output = pid->error * pid->params.Kp + pid->integral + measDiff * pid->params.Kd;
+	/* Derivative on measurement: it opposes the change of the measured value */
+	pid->output = pid->error * pid->params.Kp + pid->integral - measDiff * pid->params.Kd;
 	if (pid->output > pid->params.outputMax)
 	{
 		pid->output = pid->params.outputMax;
@@ -58,9 +60,11 @@ void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure)
 		pid->output = pid->params.outputMin;
 	}
 
-	if (pid->output == pid->params.outputMin || pid->output == pid->params.outputMax)
+	/* Anti-windup: keep the previous integral while the error pushes further into saturation */
+	if ((pid->output >= pid->params.outputMax && pid->error > 0.0f) ||
+	    (pid->output <= pid->params.outputMin && pid->error < 0.0f))
 	{
-		pid->integral -= pid->error * pid->params.Ki;
+		pid->integral = prevIntegral;
 	}
 
 	pid->lastMeasure = measure;
