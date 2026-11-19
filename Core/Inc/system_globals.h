@@ -15,6 +15,7 @@
 #define ANGULAR_SPEED_FACTOR  30.0f
 #define DRIBBLER_CONV(x)      ((x) * (1023.0f / 7.0f))
 #define VL6180X_THRESHOLD     65 // en mm
+#define BALL_FILTER_SAMPLES   3U // promedio movil de mediciones del VL6180X (~9 ms cada una)
 #define VL6180X_SAMPLE_TIME   50
 #define nRF24L01_SYSMIC_CHANNEL 0x6B
 #define ROBOT_COUNT           6U    // IDs validos: 0..5 (5 bytes por robot en el paquete de 30)
@@ -70,7 +71,7 @@ extern uint8_t ball_posession;
 extern uint8_t radioTx_counter;
 extern uint16_t ball_range;
 extern uint16_t ball_accum;
-extern uint8_t ball_meas_set[10];
+extern uint8_t ball_meas_set[BALL_FILTER_SAMPLES];
 
 // ===================== HANDLERS DE PERIFÉRICOS =====================
 extern I2C_HandleTypeDef hi2c1;

@@ -40,7 +40,7 @@ uint8_t ball_posession = 0x00;
 uint8_t radioTx_counter = 0;
 uint16_t ball_range = 0;
 uint16_t ball_accum = 0;
-uint8_t ball_meas_set[10] = {0};
+uint8_t ball_meas_set[BALL_FILTER_SAMPLES] = {0};
 osThreadId ballDetectorTaskHandle = NULL;
 
 // ===================== COMMON =====================
