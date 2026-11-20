@@ -135,7 +135,7 @@ void Motor_Init(Motor_Handler_t *motorDevice, uint8_t motorID, Motor_Status_t en
  */
 void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);
 void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice,
-                   float speed, float dt);
+                   float speed, float dt, float excitation);
 void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable);
 void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake);
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed);

@@ -32,7 +32,7 @@ void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 }
 
 void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice,
-                   float speed, float dt)
+                   float speed, float dt, float excitation)
 {
 	const float previous = motorDevice->refSpeed;
 	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
@@ -47,7 +47,7 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice,
 		ff = motorDevice->ffVoltage * (motorDevice->refSpeed > 0.0f ? 1.0f : -1.0f);
 	}
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed,
-	              motorDevice->measSpeed, ff, dt);
+	              motorDevice->measSpeed, ff + excitation, dt);
 
 	float command = motorDevice->pid.output;
 	if (command > MAX581x_MAX_VAL) command = MAX581x_MAX_VAL;

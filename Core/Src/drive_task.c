@@ -34,6 +34,9 @@ static float target_velocity[3];
 static int lateral_direction;
 static float lateral_start_time;
 static float lateral_tracking_time;
+static uint32_t excitation_rng = 0x81fcd479U;
+static float excitation[4];
+static uint32_t next_excitation;
 
 static void calibrateVelocity(float target[3], float dt)
 {
@@ -264,16 +267,34 @@ void DriveFunction(void const * argument)
                     motor[i].measSpeed += filter_gain * (measured - motor[i].measSpeed);
                 }
                 updateVelocity(control_dt);
+                /* Diagnostic firmware only. Excite wheels independently while
+                   a supervised motion command is active. */
+                const int identify = hypotf(v_vel[0], v_vel[1]) > 0.08f ||
+                                     fabsf(v_vel[2]) > 0.45f;
+                if ((int32_t)(now - next_excitation) >= 0 || !identify) {
+                    next_excitation = now + 53U;
+                    for (uint8_t i = 0; i < 4; ++i) {
+                        excitation_rng ^= excitation_rng << 13;
+                        excitation_rng ^= excitation_rng >> 17;
+                        excitation_rng ^= excitation_rng << 5;
+                        excitation[i] = identify ?
+                            ((excitation_rng & 1U) ? 155.0f : -155.0f) : 0.0f;
+                    }
+                }
                 for (uint8_t i = 0; i < 4; ++i) {
                     PID_Params_t *params = &motor[i].pid.params;
                     const float integral_divisor = lateral_direction < 0 ? 2.125f :
                         (lateral_direction > 0 ? 2.2f : 2.5f);
                     params->integralMax = pidParams.outputMax / integral_divisor;
                     params->Ki = lateral_direction < 0 ? 2.5f : pidParams.Ki;
-                    Motor_CLDrive(&motor[i], &driveDAC, speed[i], control_dt);
+                    Motor_CLDrive(&motor[i], &driveDAC, speed[i], control_dt, excitation[i]);
                 }
                 taskENTER_CRITICAL();
-                for (uint8_t i = 0; i < 4; ++i) motor_telemetry.meas_sum[i] += motor[i].measSpeed;
+                for (uint8_t i = 0; i < 4; ++i) {
+                    motor_telemetry.meas_sum[i] += motor[i].measSpeed;
+                    motor_telemetry.dac_sum[i] += motor[i].cmdOutput;
+                    motor_telemetry.excitation_sum[i] += excitation[i];
+                }
                 if (motor_telemetry.samples < UINT16_MAX) motor_telemetry.samples++;
                 taskEXIT_CRITICAL();
             }

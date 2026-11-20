@@ -50,6 +50,8 @@ extern osMessageQId nrf24CheckHandle;
    reinicia al armar cada paquete de telemetria. Acceso en seccion critica. */
 typedef struct {
     float meas_sum[4];
+    float dac_sum[4];
+    float excitation_sum[4];
     uint16_t samples;
     uint8_t active;
 } MotorTelemetry_t;

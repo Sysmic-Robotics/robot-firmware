@@ -124,8 +124,10 @@ void updateBuffer(uint8_t *buffer) {
     for (uint8_t i = 0; i < 4; ++i) {
         meas[i] = samples ? motor_telemetry.meas_sum[i] / (float)samples : 0.0f;
         motor_telemetry.meas_sum[i] = 0.0f;
-        ref[i] = active ? motor[i].refSpeed : 0.0f;
-        out[i] = active ? motor[i].cmdOutput : 0.0f;
+        ref[i] = samples ? motor_telemetry.excitation_sum[i] / (float)samples : 0.0f;
+        out[i] = samples ? motor_telemetry.dac_sum[i] / (float)samples : 0.0f;
+        motor_telemetry.excitation_sum[i] = 0.0f;
+        motor_telemetry.dac_sum[i] = 0.0f;
     }
     motor_telemetry.samples = 0;
     taskEXIT_CRITICAL();
