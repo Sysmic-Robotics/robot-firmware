@@ -52,10 +52,10 @@ static const WheelTuning rotation_tuning[4] = {
 };
 
 static const WheelTuning lateral_tuning[4] = {
-    {61.0f, 0.48f, 850.0f, 55.0f},
-    {19.0f, 0.57f, 650.0f, 70.0f},
-    {37.0f, 0.34f, 900.0f, 45.0f},
-    {16.0f, 0.47f, 820.0f, 60.0f},
+    {41.0f, 0.32f, 850.0f, 55.0f},
+    {13.0f, 0.38f, 650.0f, 70.0f},
+    {25.0f, 0.23f, 900.0f, 45.0f},
+    {11.0f, 0.32f, 820.0f, 60.0f},
 };
 
 static void calibrateVelocity(float target[3], float dt)
@@ -86,6 +86,7 @@ static void calibrateVelocity(float target[3], float dt)
             target[2] -= 0.28f * lateral;
             target[2] += 0.25f * fminf(0.20f, fmaxf(0.0f, -lateral - 0.40f));
         }
+        target[2] -= 0.28f * fminf(fabsf(lateral), 0.60f);
         /* End the breakaway pulse once three encoders track in the expected
            direction, or after the time limit even if the wheels are stalled. */
         if (lateral_start_time < 0.90f && lateral_tracking_time < 0.035f) {
