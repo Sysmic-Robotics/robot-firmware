@@ -141,7 +141,7 @@ void DriveFunction(void const * argument)
     pidParams.Kd = 0.0f;
     pidParams.outputMax = (float)(4095.0f);
     pidParams.outputMin = (float)(-4095.0f);
-    pidParams.integralMax = pidParams.outputMax / 5.0f;
+    pidParams.integralMax = pidParams.outputMax / 2.5f; /* experimento: mas autoridad para el lateral (antes /5) */
     pidParams.sampleTime = PID_SAMPLE_TIME / 1000.0f;
 
     // Enable motors and disable brake
