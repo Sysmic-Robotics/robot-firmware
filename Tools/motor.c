@@ -46,10 +46,12 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 		ff = motorDevice->ffVoltage * (motorDevice->refSpeed > 0.0f ? 1.0f : -1.0f);
 	}
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
-	
-	
 
-	Motor_SetVoltage(motorDevice, dacDevice, motorDevice->pid.output+ff);
+	float command = motorDevice->pid.output + ff;
+	if (command > MAX581x_MAX_VAL) command = MAX581x_MAX_VAL;
+	else if (command < -MAX581x_MAX_VAL) command = -MAX581x_MAX_VAL;
+	motorDevice->cmdOutput = command; /* Signed DAC code actually applied (telemetry) */
+	Motor_SetVoltage(motorDevice, dacDevice, command);
 }
 
 void Motor_Enable(Motor_Handler_t *motorDevice, Motor_Status_t enable)

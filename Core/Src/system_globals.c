@@ -14,6 +14,9 @@ uint8_t tx_node_addr[5] = {'s', 'y', 's', 't', 'x'};
 uint8_t rx_node_addr[5] = {'s', 'y', 's', 'r', 'x'};
 osMessageQId nrf24CheckHandle = NULL;
 
+// ===================== TELEMETRIA DE MOTORES =====================
+MotorTelemetry_t motor_telemetry = {0};
+
 // ===================== DRIVE TASK =====================
 uint8_t direction[4] = {0};
 float speed[4] = {0};

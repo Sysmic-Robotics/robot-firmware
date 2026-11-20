@@ -114,6 +114,7 @@ typedef struct Motor_Handler
 	uint8_t outputID;
 	volatile float refSpeed;
 	volatile float measSpeed;
+	volatile float cmdOutput;	/* Signed DAC code applied in the last CLDrive */
 
 	uint16_t voltage;
 	Motor_Status_t enable;

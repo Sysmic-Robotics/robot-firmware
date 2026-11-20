@@ -83,32 +83,65 @@ void RadioFunction(void const * argument) {
 }
 
 
-void updateBuffer(uint8_t *buffer) {
+/* Telemetria v2 (32 bytes). La base station la reenvia sin cambios.
+   [0]     ID<<5 | balon            [1..2] rango del sensor (mm, uint16 LE)
+   [3]     0xA5 (marca v2)          [4]    bit0 comando valido, bit1 motores activos
+   [5]     muestras de 1 ms promediadas (saturado a 255)
+   [6..13]  velocidad medida promedio por rueda, int16 LE, rad/s * 50
+   [14..21] referencia por rueda, int16 LE, rad/s * 50
+   [22..29] salida aplicada al DAC por rueda, int16 LE (codigo con signo)
+   [30]    contador de paquetes     [31]   XOR de los bytes 0..30 */
+#define TELEMETRY_V2_MARK   0xA5U
+#define TELEMETRY_SPEED_SCALE 50.0f
 
-    // Fill buffer with zeros if necessary
+static void put_i16(uint8_t *dst, float value)
+{
+    float r = value >= 0.0f ? value + 0.5f : value - 0.5f;
+    if (r > 32767.0f) r = 32767.0f;
+    else if (r < -32768.0f) r = -32768.0f;
+    int16_t v = (int16_t)r;
+    dst[0] = (uint8_t)((uint16_t)v & 0xFFU);
+    dst[1] = (uint8_t)(((uint16_t)v >> 8) & 0xFFU);
+}
+
+void updateBuffer(uint8_t *buffer) {
+    static uint8_t sequence = 0;
+    float meas[4], ref[4], out[4];
+    uint16_t samples;
+    uint8_t active;
+
     memset(&buffer[0], 0, 32);
 
-    
-    // Set first byte: bits 5-7 = robot_id (3 bits), bit 0 = ball_possession, bits 1-4 = 0
-    uint8_t id_bits = (robot_id << 5); // 3 bits for robot_id
-    uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0); // 1 bit for ball_posession at bit 0
+    // Byte 0: bits 5-7 = robot_id, bit 0 = posesion de balon
+    uint8_t id_bits = (robot_id << 5);
+    uint8_t ball_bit = (ball_posession == 0x01 ? 1 : 0);
     buffer[0] = id_bits | ball_bit;
-
     memcpy(&buffer[1], &ball_range, sizeof(uint16_t));
 
+    taskENTER_CRITICAL();
+    samples = motor_telemetry.samples;
+    active = motor_telemetry.active;
+    for (uint8_t i = 0; i < 4; ++i) {
+        meas[i] = samples ? motor_telemetry.meas_sum[i] / (float)samples : 0.0f;
+        motor_telemetry.meas_sum[i] = 0.0f;
+        ref[i] = active ? motor[i].refSpeed : 0.0f;
+        out[i] = active ? motor[i].cmdOutput : 0.0f;
+    }
+    motor_telemetry.samples = 0;
+    taskEXIT_CRITICAL();
 
-    /*
-    float m0 = motor[0].measSpeed;
-    float m1 = motor[1].measSpeed;
-    float m2 = motor[2].measSpeed;
-    float m3 = motor[3].measSpeed;
-
-    memcpy(&buffer[3+4*0], &m0, sizeof(float));
-    memcpy(&buffer[3+4*1], &m1, sizeof(float));
-    memcpy(&buffer[3+4*2], &m2, sizeof(float));
-    memcpy(&buffer[3+4*3], &m3, sizeof(float));
-    */
-
+    buffer[3] = TELEMETRY_V2_MARK;
+    buffer[4] = (radio_command_received ? 0x01U : 0x00U) | (active ? 0x02U : 0x00U);
+    buffer[5] = samples > 255U ? 255U : (uint8_t)samples;
+    for (uint8_t i = 0; i < 4; ++i) {
+        put_i16(&buffer[6 + 2 * i], meas[i] * TELEMETRY_SPEED_SCALE);
+        put_i16(&buffer[14 + 2 * i], ref[i] * TELEMETRY_SPEED_SCALE);
+        put_i16(&buffer[22 + 2 * i], out[i]);
+    }
+    buffer[30] = sequence++;
+    uint8_t check = 0;
+    for (uint8_t i = 0; i < 31; ++i) check ^= buffer[i];
+    buffer[31] = check;
 }
 
 

@@ -45,6 +45,16 @@ extern uint8_t tx_node_addr[5];
 extern uint8_t rx_node_addr[5];
 extern osMessageQId nrf24CheckHandle;
 
+// --- TELEMETRIA DE MOTORES ---
+/* driveTask acumula la velocidad medida (1 kHz); radioTask la promedia y la
+   reinicia al armar cada paquete de telemetria. Acceso en seccion critica. */
+typedef struct {
+    float meas_sum[4];
+    uint16_t samples;
+    uint8_t active;
+} MotorTelemetry_t;
+extern MotorTelemetry_t motor_telemetry;
+
 // --- DRIVE TASK ---
 extern float speed[4];
 extern float kinematic[4][3];

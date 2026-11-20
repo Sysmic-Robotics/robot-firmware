@@ -204,6 +204,10 @@ void DriveFunction(void const * argument)
             }
             updateVelocity((float)elapsed / 1000.0f);
             for (uint8_t i = 0; i < 4; ++i) Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
+            taskENTER_CRITICAL();
+            for (uint8_t i = 0; i < 4; ++i) motor_telemetry.meas_sum[i] += motor[i].measSpeed;
+            if (motor_telemetry.samples < UINT16_MAX) motor_telemetry.samples++;
+            taskEXIT_CRITICAL();
             MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler]);
             if (kick_sel && kick_flag == KICKER_CHARGED) {
                 osMutexWait(kickFlagHandle, osWaitForever);
@@ -212,6 +216,7 @@ void DriveFunction(void const * argument)
                 osMessagePut(kickQueueHandle, 0, 0);
             }
         }
+        motor_telemetry.active = active;
         osMessagePut(nrf24CheckHandle, 0, 0);
         osDelayUntil(&timeToWait, (uint32_t)PID_SAMPLE_TIME);
     }
