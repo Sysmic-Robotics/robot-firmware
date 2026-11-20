@@ -59,10 +59,12 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-#define WHEEL_ANGlE_1					40.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2					140.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3					210.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					330.0f * M_PI / 180.0f
+/* Wheel angles measured from the forward axis: symmetric +-55 / +-125 deg
+   (motor order of main confirmed with the robot lifted, 2026-11-20). */
+#define WHEEL_ANGlE_1					55.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					125.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					235.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					305.0f * M_PI / 180.0f
 
 
 /*#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)
