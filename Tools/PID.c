@@ -10,6 +10,7 @@
  */
 
 #include "PID.h"
+#include <math.h>
 
 void PID_Init(PID_Handler_t *pid, PID_Params_t params, PID_Status_t enable)
 {
@@ -25,47 +26,33 @@ void PID_Init(PID_Handler_t *pid, PID_Params_t params, PID_Status_t enable)
 	pid->enable = enable;
 }
 
-void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure)
+void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure,
+                   float feedforward, float dt)
 {
 	if(pid->enable != PID_STATUS_ENABLE)
 	{
 		pid->lastMeasure = measure;
-		pid->output = reference;
+		pid->output = reference + feedforward;
 		return;
 	}
 	pid->ref = reference;
 	pid->error = pid->ref - measure;
 
-	float prevIntegral = pid->integral;
-	pid->integral += pid->error * pid->params.Ki;
-	if (pid->integral > pid->params.integralMax)
-	{
-		pid->integral = pid->params.integralMax;
-	}
-	else if (pid->integral < -pid->params.integralMax)
-	{
-		pid->integral = -pid->params.integralMax;
-	}
-	
-	float measDiff = measure - pid->lastMeasure;
-		
-	/* Derivative on measurement: it opposes the change of the measured value */
-	pid->output = pid->error * pid->params.Kp + pid->integral - measDiff * pid->params.Kd;
-	if (pid->output > pid->params.outputMax)
-	{
-		pid->output = pid->params.outputMax;
-	}		
-	else if (pid->output < pid->params.outputMin)
-	{
-		pid->output = pid->params.outputMin;
-	}
-
-	/* Anti-windup: keep the previous integral while the error pushes further into saturation */
-	if ((pid->output >= pid->params.outputMax && pid->error > 0.0f) ||
-	    (pid->output <= pid->params.outputMin && pid->error < 0.0f))
-	{
-		pid->integral = prevIntegral;
-	}
+	const float limit = pid->params.integralMax;
+	const float previous = fminf(limit, fmaxf(-limit, pid->integral));
+	const float samples = dt / pid->params.sampleTime;
+	const float candidate = fminf(limit, fmaxf(-limit,
+		previous + pid->error * pid->params.Ki * samples));
+	const float base = feedforward + pid->error * pid->params.Kp -
+		(measure - pid->lastMeasure) * pid->params.Kd / samples;
+	const float requested = base + candidate;
+	/* The feedforward also consumes DAC headroom. Keep the old integral
+	   if the requested output would saturate further in its direction. */
+	const int saturated = (requested > pid->params.outputMax && candidate > previous) ||
+	                      (requested < pid->params.outputMin && candidate < previous);
+	pid->integral = saturated ? previous : candidate;
+	pid->output = fminf(pid->params.outputMax,
+	                    fmaxf(pid->params.outputMin, base + pid->integral));
 
 	pid->lastMeasure = measure;
 }

@@ -106,7 +106,8 @@ void PID_Init(PID_Handler_t *pid, PID_Params_t params, PID_Status_t enable);
  * \param reference: Reference set to PID controller
  * \param measure: Feedback used to compute error
  */
-void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure);
+void PID_CloseLoop(PID_Handler_t *pid, float reference, float measure,
+                   float feedforward, float dt);
 
 /**
  * \brief Set PID parameters

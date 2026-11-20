@@ -31,23 +31,25 @@ void Motor_OLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 	Motor_SetVoltage(motorDevice, dacDevice, speed  * MOTOR_SPEED_CONV);
 }
 
-void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
+void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice,
+                   float speed, float dt)
 {
-  /*
-  if (motorDevice->refSpeed == 0.0f) Motor_Enable(motorDevice, MOTOR_STATUS_DISABLE);
-  else Motor_Enable(motorDevice, MOTOR_STATUS_ENABLE);
-  */
-	/* Apply PID */
+	const float previous = motorDevice->refSpeed;
 	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
-	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
+	if (previous * motorDevice->refSpeed < 0.0f ||
+	    (motorDevice->refSpeed == 0.0f &&
+	     (previous != 0.0f || fabsf(motorDevice->measSpeed) < 1.0f))) {
+		motorDevice->pid.integral = 0.0f;
+	}
 
 	float ff= 0.0f;
 	if (fabs(motorDevice->refSpeed) > motorDevice->speedDeadband){
 		ff = motorDevice->ffVoltage * (motorDevice->refSpeed > 0.0f ? 1.0f : -1.0f);
 	}
-	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
+	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed,
+	              motorDevice->measSpeed, ff, dt);
 
-	float command = motorDevice->pid.output + ff;
+	float command = motorDevice->pid.output;
 	if (command > MAX581x_MAX_VAL) command = MAX581x_MAX_VAL;
 	else if (command < -MAX581x_MAX_VAL) command = -MAX581x_MAX_VAL;
 	motorDevice->cmdOutput = command; /* Signed DAC code actually applied (telemetry) */

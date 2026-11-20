@@ -54,7 +54,7 @@
 #include "math.h"
 
 // #define M_PI 					3.14159265358979323846f
-#define ENCODER_CPR		4.0f * 2048.0f
+#define ENCODER_CPR		(4.0f * 2048.0f)
 
 typedef enum {
 	ENCODER_STATUS_DISABLE = 0,
@@ -63,7 +63,7 @@ typedef enum {
 
 typedef struct Encoder_Handler {
 	volatile uint32_t *count;
-	float oldPos;
+	uint16_t previousCount;
 
 	uint8_t overflow;	
 	int16_t resetVal;
@@ -73,6 +73,7 @@ typedef struct Encoder_Handler {
 } Encoder_Handler_t;
 
 float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime);
+void Encoder_Sync(Encoder_Handler_t *encoderDevice);
 float mod(float x, float y);
 float AngleNormalize(float a);
 

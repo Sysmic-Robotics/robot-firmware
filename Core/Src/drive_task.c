@@ -52,8 +52,17 @@ static void calibrateVelocity(float target[3], float dt)
         lateral_tracking_time = 0.0f;
     }
     if (direction != 0) {
-        target[0] += 0.25f * lateral;
-        target[2] -= (direction > 0 ? 0.77f : 0.28f) * lateral;
+        const float reverse_speed_blend =
+            fminf(1.0f, fmaxf(0.0f, (-lateral - 0.30f) / 0.30f));
+        target[0] += (0.25f - 0.025f * reverse_speed_blend) * lateral;
+        /* Positive lateral yaw compensation is calibrated at low speed;
+           capping it avoids overcorrecting at higher wheel references. */
+        if (direction > 0) {
+            target[2] -= 0.77f * fminf(lateral, 0.45f);
+        } else {
+            target[2] -= 0.28f * lateral;
+            target[2] += 0.25f * fminf(0.20f, fmaxf(0.0f, -lateral - 0.40f));
+        }
         /* End the breakaway pulse once three encoders track in the expected
            direction, or after the time limit even if the wheels are stalled. */
         if (lateral_start_time < 0.90f && lateral_tracking_time < 0.035f) {
@@ -135,7 +144,6 @@ void DriveFunction(void const * argument)
     motor[0].brakePin.GPIOx = GPIOA;
     motor[0].brakePin.GPIO_Pin = GPIO_PIN_8;
     motor[0].encoder.count = &TIM3->CNT;
-    motor[0].encoder.oldPos = TIM3->CNT / ENCODER_CPR;
     motor[0].encoder.enable = ENCODER_STATUS_ENABLE;
     motor[0].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM3->CR1 = TIM_CR1_CEN;
@@ -148,7 +156,6 @@ void DriveFunction(void const * argument)
     motor[1].brakePin.GPIOx = GPIOD;
     motor[1].brakePin.GPIO_Pin = GPIO_PIN_0;
     motor[1].encoder.count = &TIM8->CNT;
-    motor[1].encoder.oldPos = TIM8->CNT / ENCODER_CPR;
     motor[1].encoder.enable = ENCODER_STATUS_ENABLE;
     motor[1].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM8->CR1 = TIM_CR1_CEN;
@@ -161,7 +168,6 @@ void DriveFunction(void const * argument)
     motor[2].brakePin.GPIOx = GPIOK;
     motor[2].brakePin.GPIO_Pin = GPIO_PIN_6;
     motor[2].encoder.count = &TIM2->CNT;
-    motor[2].encoder.oldPos = TIM2->CNT / ENCODER_CPR;
     motor[2].encoder.enable = ENCODER_STATUS_ENABLE;
     motor[2].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM2->CR1 = TIM_CR1_CEN;
@@ -174,7 +180,6 @@ void DriveFunction(void const * argument)
     motor[3].brakePin.GPIOx = GPIOF;
     motor[3].brakePin.GPIO_Pin = GPIO_PIN_4;
     motor[3].encoder.count = &TIM5->CNT;
-    motor[3].encoder.oldPos = TIM5->CNT / ENCODER_CPR;
     motor[3].encoder.enable = ENCODER_STATUS_ENABLE;
     motor[3].encoder.minSpeed = WHEEL_MAX_SPEED_RAD * 0.001f;
     TIM5->CR1 = TIM_CR1_CEN;
@@ -208,8 +213,6 @@ void DriveFunction(void const * argument)
         uint32_t now = HAL_GetTick();
         uint32_t elapsed = now - last_control_ms;
         last_control_ms = now;
-        /* Avoid a large step after a delayed control iteration. */
-        if (elapsed > 50U) elapsed = 50U;
         taskENTER_CRITICAL();
         uint32_t check_time = HAL_GetTick();
         uint8_t valid = radio_command_received &&
@@ -232,6 +235,7 @@ void DriveFunction(void const * argument)
                     speed[i] = 0.0f;
                     motor[i].pid.integral = 0.0f;
                     motor[i].pid.lastMeasure = 0.0f;
+                    motor[i].cmdOutput = 0.0f;
                     MAX581x_Code(&driveDAC, i, 0);
                 }
                 for (uint8_t i = 0; i < 3; ++i) v_vel[i] = 0.0f;
@@ -241,23 +245,38 @@ void DriveFunction(void const * argument)
         } else {
             if (!active) {
                 for (uint8_t i = 0; i < 4; ++i) {
-                    /* Descarta las cuentas acumuladas mientras el robot estaba inactivo. */
-                    *motor[i].encoder.count = 0;
+                    Encoder_Sync(&motor[i].encoder);
+                    motor[i].measSpeed = 0.0f;
+                    motor[i].refSpeed = 0.0f;
                     Motor_Enable(&motor[i], MOTOR_STATUS_ENABLE);
                 }
                 HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_SET);
                 active = 1;
             }
-            updateVelocity((float)elapsed / 1000.0f);
-            for (uint8_t i = 0; i < 4; ++i) {
-                motor[i].pid.params.integralMax = pidParams.outputMax /
-                    (lateral_direction ? 2.2f : 2.5f);
-                Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
+            if (elapsed != 0U) {
+                const float sample_dt = (float)elapsed / 1000.0f;
+                const float control_dt = fminf(sample_dt, 0.05f);
+                /* Sample all wheels before the blocking writes to the DAC. */
+                const float filter_gain = lateral_direction < 0 ?
+                    sample_dt / (0.006f + sample_dt) : 1.0f;
+                for (uint8_t i = 0; i < 4; ++i) {
+                    const float measured = Encoder_Update(&motor[i].encoder, sample_dt);
+                    motor[i].measSpeed += filter_gain * (measured - motor[i].measSpeed);
+                }
+                updateVelocity(control_dt);
+                for (uint8_t i = 0; i < 4; ++i) {
+                    PID_Params_t *params = &motor[i].pid.params;
+                    const float integral_divisor = lateral_direction < 0 ? 2.125f :
+                        (lateral_direction > 0 ? 2.2f : 2.5f);
+                    params->integralMax = pidParams.outputMax / integral_divisor;
+                    params->Ki = lateral_direction < 0 ? 2.5f : pidParams.Ki;
+                    Motor_CLDrive(&motor[i], &driveDAC, speed[i], control_dt);
+                }
+                taskENTER_CRITICAL();
+                for (uint8_t i = 0; i < 4; ++i) motor_telemetry.meas_sum[i] += motor[i].measSpeed;
+                if (motor_telemetry.samples < UINT16_MAX) motor_telemetry.samples++;
+                taskEXIT_CRITICAL();
             }
-            taskENTER_CRITICAL();
-            for (uint8_t i = 0; i < 4; ++i) motor_telemetry.meas_sum[i] += motor[i].measSpeed;
-            if (motor_telemetry.samples < UINT16_MAX) motor_telemetry.samples++;
-            taskEXIT_CRITICAL();
             MAX581x_Code(&dribblerDAC, MAX581x_OUTPUT_A, Dribbler_SpeedSet[dribbler]);
             if (kick_sel && kick_flag == KICKER_CHARGED) {
                 osMutexWait(kickFlagHandle, osWaitForever);

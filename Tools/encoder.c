@@ -15,28 +15,15 @@ float Encoder_Update(Encoder_Handler_t *encoderDevice, float sampleTime)
 {
 	if(encoderDevice->enable != ENCODER_STATUS_ENABLE)
 		return 0;
-	/* Tigers */
-	/*
-	int32_t encPos = (int32_t)*encoderDevice->count;
-	float encPosF = encPos;
-	encPosF /= ENCODER_CPR;
+	uint16_t count = (uint16_t)*encoderDevice->count;
+	int16_t delta = (int16_t)(uint16_t)(count - encoderDevice->previousCount);
+	encoderDevice->previousCount = count;
+	return (float)delta * (2.0f * (float)M_PI) / (ENCODER_CPR * sampleTime);
+}
 
-	float speed = AngleNormalize(encPosF - encoderDevice->oldPos) / sampleTime;
-	encoderDevice->oldPos = encPosF;
-	if(encoderDevice->minSpeed != 0.0f && fabs(speed) < encoderDevice->minSpeed)
-	{
-		speed = 0.0f;
-	}
-	*/
-	/* TESTING */
-	int16_t encPos = (int16_t)*encoderDevice->count;
-	float encPosF = fabs((float)encPos) < 1.0f ? 0.0f : (float)encPos; //acotacion de filtro
-
-	*encoderDevice->count = 0;
-	float speed = encPosF * 2 * M_PI / (ENCODER_CPR * sampleTime);
-
-	//return encPosF;
-	return speed;
+void Encoder_Sync(Encoder_Handler_t *encoderDevice)
+{
+	encoderDevice->previousCount = (uint16_t)*encoderDevice->count;
 }
 
 /* Tigers angle normalizer */
