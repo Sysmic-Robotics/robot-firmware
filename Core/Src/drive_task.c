@@ -35,6 +35,29 @@ static int lateral_direction;
 static float lateral_start_time;
 static float lateral_tracking_time;
 
+typedef struct {
+    float kp;
+    float ki_per_ms;
+    float friction_dac;
+    float speed_dac;
+} WheelTuning;
+
+/* Conservative SIMC PI from the on-floor DAC identification. The rotation
+   estimate for M3 hit its time-constant bound; use a pooled time constant. */
+static const WheelTuning rotation_tuning[4] = {
+    {42.0f, 0.66f,  50.0f,  8.0f},
+    {23.0f, 1.23f, 140.0f, 11.0f},
+    {24.0f, 0.48f,  60.0f,  8.0f},
+    {43.0f, 1.00f,  40.0f,  8.0f},
+};
+
+static const WheelTuning lateral_tuning[4] = {
+    {61.0f, 0.48f, 850.0f, 55.0f},
+    {19.0f, 0.57f, 650.0f, 70.0f},
+    {37.0f, 0.34f, 900.0f, 45.0f},
+    {16.0f, 0.47f, 820.0f, 60.0f},
+};
+
 static void calibrateVelocity(float target[3], float dt)
 {
     const float forward = target[0];
@@ -257,19 +280,25 @@ void DriveFunction(void const * argument)
                 const float sample_dt = (float)elapsed / 1000.0f;
                 const float control_dt = fminf(sample_dt, 0.05f);
                 /* Sample all wheels before the blocking writes to the DAC. */
-                const float filter_gain = lateral_direction < 0 ?
-                    sample_dt / (0.006f + sample_dt) : 1.0f;
+                updateVelocity(control_dt);
+                const int rotating = hypotf(v_vel[0], v_vel[1]) < 0.05f &&
+                                     fabsf(v_vel[2]) > 0.15f;
+                const WheelTuning *tuning = lateral_direction ? lateral_tuning :
+                                            (rotating ? rotation_tuning : NULL);
+                const float filter_gain = tuning ? sample_dt / (0.006f + sample_dt) : 1.0f;
                 for (uint8_t i = 0; i < 4; ++i) {
                     const float measured = Encoder_Update(&motor[i].encoder, sample_dt);
                     motor[i].measSpeed += filter_gain * (measured - motor[i].measSpeed);
                 }
-                updateVelocity(control_dt);
                 for (uint8_t i = 0; i < 4; ++i) {
                     PID_Params_t *params = &motor[i].pid.params;
                     const float integral_divisor = lateral_direction < 0 ? 2.125f :
                         (lateral_direction > 0 ? 2.2f : 2.5f);
                     params->integralMax = pidParams.outputMax / integral_divisor;
-                    params->Ki = lateral_direction < 0 ? 2.5f : pidParams.Ki;
+                    params->Kp = tuning ? tuning[i].kp : pidParams.Kp;
+                    params->Ki = tuning ? tuning[i].ki_per_ms : pidParams.Ki;
+                    motor[i].ffVoltage = tuning ? tuning[i].friction_dac : 300.0f;
+                    motor[i].ffSpeedGain = tuning ? tuning[i].speed_dac : 0.0f;
                     Motor_CLDrive(&motor[i], &driveDAC, speed[i], control_dt);
                 }
                 taskENTER_CRITICAL();

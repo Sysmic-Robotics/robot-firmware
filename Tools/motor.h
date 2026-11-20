@@ -122,6 +122,7 @@ typedef struct Motor_Handler
 	Motor_Status_t enable;
 
 	float ffVoltage;
+	float ffSpeedGain;
 	float speedDeadband;
 } Motor_Handler_t;
 

@@ -42,10 +42,11 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice,
 		motorDevice->pid.integral = 0.0f;
 	}
 
-	float ff= 0.0f;
-	if (fabs(motorDevice->refSpeed) > motorDevice->speedDeadband){
-		ff = motorDevice->ffVoltage * (motorDevice->refSpeed > 0.0f ? 1.0f : -1.0f);
-	}
+	const float magnitude = fabsf(motorDevice->refSpeed);
+	const float stiction_blend = motorDevice->ffSpeedGain > 0.0f ?
+		fminf(1.0f, magnitude / 4.0f) : (magnitude > motorDevice->speedDeadband ? 1.0f : 0.0f);
+	const float ff = copysignf(motorDevice->ffVoltage * stiction_blend +
+	                          motorDevice->ffSpeedGain * magnitude, motorDevice->refSpeed);
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed,
 	              motorDevice->measSpeed, ff, dt);
 
