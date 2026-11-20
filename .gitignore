@@ -1,0 +1,7 @@
+# Carpetas generadas por STM32CubeIDE (se recrean al compilar)
+/Debug/
+/Release/
+
+# Python
+__pycache__/
+*.pyc
