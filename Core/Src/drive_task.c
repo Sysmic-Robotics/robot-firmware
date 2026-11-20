@@ -35,6 +35,12 @@ static int lateral_direction;
 static float lateral_start_time;
 static float lateral_tracking_time;
 
+/* SIMC PI for rotation, independently identified for M1 through M4. */
+static const float rotation_kp[4] = {42.0f, 23.0f, 24.0f, 43.0f};
+static const float rotation_ki[4] = {0.66f, 1.23f, 0.48f, 1.00f};
+static const float rotation_friction[4] = {50.0f, 140.0f, 60.0f, 40.0f};
+static const float rotation_speed_gain[4] = {8.0f, 11.0f, 8.0f, 8.0f};
+
 static void calibrateVelocity(float target[3], float dt)
 {
     const float forward = target[0];
@@ -76,12 +82,14 @@ static void calibrateVelocity(float target[3], float dt)
     }
 }
 
-static void updateVelocity(float dt)
+static int updateVelocity(float dt)
 {
     float target[3];
     taskENTER_CRITICAL();
     for (uint8_t i = 0; i < 3; ++i) target[i] = target_velocity[i];
     taskEXIT_CRITICAL();
+    const int rotation_command = target[0] == 0.0f && target[1] == 0.0f &&
+                                 fabsf(target[2]) > 0.15f;
     calibrateVelocity(target, dt);
     float dx = target[0] - v_vel[0];
     float dy = target[1] - v_vel[1];
@@ -101,6 +109,7 @@ static void updateVelocity(float dt)
         direction[i] = wheel > 0 ? WHEEL_P_ROTATION : WHEEL_N_ROTATION;
         speed[i] = wheel;
     }
+    return rotation_command && hypotf(v_vel[0], v_vel[1]) < 0.05f;
 }
 
 void DriveFunction(void const * argument)
@@ -196,7 +205,6 @@ void DriveFunction(void const * argument)
         Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
         PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
 
-        motor[i].ffVoltage = 300.0f;
         motor[i].speedDeadband = WHEEL_MAX_SPEED_RAD * 0.005f;
     }
 
@@ -230,6 +238,7 @@ void DriveFunction(void const * argument)
                 HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_RESET);
                 for (uint8_t i = 0; i < 4; ++i) {
                     speed[i] = 0.0f;
+                    motor[i].measSpeed = 0.0f;
                     motor[i].pid.integral = 0.0f;
                     motor[i].pid.lastMeasure = 0.0f;
                     MAX581x_Code(&driveDAC, i, 0);
@@ -248,10 +257,16 @@ void DriveFunction(void const * argument)
                 HAL_GPIO_WritePin(GPIOJ, GPIO_PIN_8, GPIO_PIN_SET);
                 active = 1;
             }
-            updateVelocity((float)elapsed / 1000.0f);
+            const int rotating = updateVelocity((float)elapsed / 1000.0f);
             for (uint8_t i = 0; i < 4; ++i) {
                 motor[i].pid.params.integralMax = pidParams.outputMax /
                     (lateral_direction ? 2.2f : 2.5f);
+                motor[i].pid.params.Kp = rotating ? rotation_kp[i] : pidParams.Kp;
+                motor[i].pid.params.Ki = rotating ? rotation_ki[i] : pidParams.Ki;
+                motor[i].ffVoltage = rotating ? rotation_friction[i] : 300.0f;
+                motor[i].ffSpeedGain = rotating ? rotation_speed_gain[i] : 0.0f;
+                motor[i].speedFilterGain = rotating ?
+                    pidParams.sampleTime / (0.006f + pidParams.sampleTime) : 1.0f;
                 Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
             }
             taskENTER_CRITICAL();

@@ -39,12 +39,16 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
   */
 	/* Apply PID */
 	motorDevice->refSpeed = speed * SPEED_CNT_RATIO;
-	motorDevice->measSpeed = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
+	const float measured = Encoder_Update(&motorDevice->encoder, motorDevice->pid.params.sampleTime);
+	motorDevice->measSpeed = motorDevice->speedFilterGain < 1.0f ?
+		motorDevice->measSpeed + motorDevice->speedFilterGain * (measured - motorDevice->measSpeed) :
+		measured;
 
-	float ff= 0.0f;
-	if (fabs(motorDevice->refSpeed) > motorDevice->speedDeadband){
-		ff = motorDevice->ffVoltage * (motorDevice->refSpeed > 0.0f ? 1.0f : -1.0f);
-	}
+	const float magnitude = fabsf(motorDevice->refSpeed);
+	const float blend = motorDevice->ffSpeedGain > 0.0f ?
+		fminf(1.0f, magnitude / 4.0f) : (magnitude > motorDevice->speedDeadband ? 1.0f : 0.0f);
+	const float ff = copysignf(motorDevice->ffVoltage * blend +
+	                          motorDevice->ffSpeedGain * magnitude, motorDevice->refSpeed);
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
 
 	float command = motorDevice->pid.output + ff;
