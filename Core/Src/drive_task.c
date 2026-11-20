@@ -31,6 +31,50 @@
 
 /* Latest commanded velocity; written by the radio task under a critical section. */
 static float target_velocity[3];
+static int lateral_direction;
+static float lateral_start_time;
+static float lateral_tracking_time;
+
+static void calibrateVelocity(float target[3], float dt)
+{
+    const float forward = target[0];
+    const float lateral = target[1];
+    /* Identified separately for forward and reverse on the 1 m course. */
+    target[0] = 1.16f * forward;
+    target[1] += (forward >= 0.0f ? 0.24f : 0.16f) * forward;
+    target[2] -= (forward >= 0.0f ? 0.23f : 0.46f) * forward;
+
+    const int direction = fabsf(lateral) >= 0.20f && fabsf(lateral) > fabsf(forward)
+                          ? (lateral > 0.0f ? 1 : -1) : 0;
+    if (direction != lateral_direction) {
+        lateral_direction = direction;
+        lateral_start_time = 0.0f;
+        lateral_tracking_time = 0.0f;
+    }
+    if (direction != 0) {
+        target[0] += 0.25f * lateral;
+        target[2] -= (direction > 0 ? 0.77f : 0.28f) * lateral;
+        /* End the breakaway pulse once three encoders track in the expected
+           direction, or after the time limit even if the wheels are stalled. */
+        if (lateral_start_time < 0.90f && lateral_tracking_time < 0.035f) {
+            unsigned int tracking = 0;
+            for (uint8_t i = 0; i < 4; ++i) {
+                const float sign = (i == 0 || i == 3) ? direction : -direction;
+                if (sign * motor[i].measSpeed > 3.0f) ++tracking;
+            }
+            lateral_start_time += dt;
+            lateral_tracking_time = tracking >= 3 ? lateral_tracking_time + dt : 0.0f;
+            if (fabsf(target[1]) < 1.0f) target[1] = (float)direction;
+        }
+    }
+
+    const float magnitude = hypotf(target[0], target[1]);
+    if (magnitude > ROBOT_MAX_LINEAR_VEL) {
+        const float scale = ROBOT_MAX_LINEAR_VEL / magnitude;
+        target[0] *= scale;
+        target[1] *= scale;
+    }
+}
 
 static void updateVelocity(float dt)
 {
@@ -38,6 +82,7 @@ static void updateVelocity(float dt)
     taskENTER_CRITICAL();
     for (uint8_t i = 0; i < 3; ++i) target[i] = target_velocity[i];
     taskEXIT_CRITICAL();
+    calibrateVelocity(target, dt);
     float dx = target[0] - v_vel[0];
     float dy = target[1] - v_vel[1];
     float delta = sqrtf(dx * dx + dy * dy);
@@ -170,6 +215,7 @@ void DriveFunction(void const * argument)
         uint8_t valid = radio_command_received &&
                         (uint32_t)(check_time - radio_last_command_ms) < RADIO_COMMAND_TIMEOUT_MS;
         if (!valid) {
+            lateral_direction = 0;
             radio_command_received = 0;
             dribbler_sel = 0;
             kick_sel = 0;
@@ -203,7 +249,11 @@ void DriveFunction(void const * argument)
                 active = 1;
             }
             updateVelocity((float)elapsed / 1000.0f);
-            for (uint8_t i = 0; i < 4; ++i) Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
+            for (uint8_t i = 0; i < 4; ++i) {
+                motor[i].pid.params.integralMax = pidParams.outputMax /
+                    (lateral_direction ? 2.2f : 2.5f);
+                Motor_CLDrive(&motor[i], &driveDAC, speed[i]);
+            }
             taskENTER_CRITICAL();
             for (uint8_t i = 0; i < 4; ++i) motor_telemetry.meas_sum[i] += motor[i].measSpeed;
             if (motor_telemetry.samples < UINT16_MAX) motor_telemetry.samples++;
