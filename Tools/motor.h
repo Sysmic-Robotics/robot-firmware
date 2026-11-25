@@ -59,12 +59,13 @@ enum {
 	WHEEL_N_ROTATION
 };
 
-/* Wheel angles measured from the forward axis: symmetric +-55 / +-125 deg
-   (motor order of main confirmed with the robot lifted, 2026-11-20). */
-#define WHEEL_ANGlE_1					55.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_2					125.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_3					235.0f * M_PI / 180.0f
-#define WHEEL_ANGlE_4					305.0f * M_PI / 180.0f
+/* Wheel angles measured from the forward axis: physical geometry 60/120/240/300 deg
+   (motor order of main confirmed with the robot lifted, 2026-11-20). The previous
+   55/125/235/305 drove vx 5.4 % slow and vy 14.7 % fast (measured 2026-11-23). */
+#define WHEEL_ANGlE_1					60.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_2					120.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_3					240.0f * M_PI / 180.0f
+#define WHEEL_ANGlE_4					300.0f * M_PI / 180.0f
 
 
 /*#define WHEEL_ANGlE_1s					-(90.0f+35.0f) * (M_PI / 180.0f)

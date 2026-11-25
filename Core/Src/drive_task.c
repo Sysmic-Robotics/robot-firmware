@@ -17,6 +17,7 @@
 #ifndef PID_SAMPLE_TIME
 #define PID_SAMPLE_TIME 1 // Ajusta el valor según tu aplicación
 #endif
+#define WHEEL_FF_CODES 70.0f // prealimentacion de roce [codigo DAC] (medido 40-140 por rueda)
 #ifndef ENCODER_CPR
 #define ENCODER_CPR 4096 // Ajusta el valor según tu aplicación
 #endif
@@ -136,12 +137,15 @@ void DriveFunction(void const * argument)
 
     // Config PID
     PID_Params_t pidParams;
-    pidParams.Kp = 12.0f;
-    pidParams.Ki = 4.5f;
+    /* Wheel PI identified on the field (2026-11-23): Kp 12 / Ki 4.5 left under 6 deg of
+       phase margin; Kp 33 / Ki 0.84 per sample gives about 10-25 deg. The PI output plus
+       the friction feedforward stays within +-2100 DAC codes (L6235 overcurrent ~2190). */
+    pidParams.Kp = 33.0f;
+    pidParams.Ki = 0.84f;
     pidParams.Kd = 0.0f;
-    pidParams.outputMax = (float)(4095.0f);
-    pidParams.outputMin = (float)(-4095.0f);
-    pidParams.integralMax = pidParams.outputMax / 5.0f;
+    pidParams.outputMax = (float)(2100.0f - WHEEL_FF_CODES);
+    pidParams.outputMin = -pidParams.outputMax;
+    pidParams.integralMax = 1638.0f;
     pidParams.sampleTime = PID_SAMPLE_TIME / 1000.0f;
 
     // Enable motors and disable brake
@@ -151,7 +155,7 @@ void DriveFunction(void const * argument)
         Motor_SetBrake(&motor[i], MOTOR_BRAKE_DISABLE);
         PID_Init(&motor[i].pid, pidParams, PID_STATUS_ENABLE);
 
-        motor[i].ffVoltage = 300.0f;
+        motor[i].ffVoltage = WHEEL_FF_CODES;
         motor[i].speedDeadband = WHEEL_MAX_SPEED_RAD * 0.005f;
     }
 
