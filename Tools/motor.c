@@ -48,8 +48,8 @@ void Motor_CLDrive(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, f
 	PID_CloseLoop(&motorDevice->pid, motorDevice->refSpeed, motorDevice->measSpeed);
 
 	float command = motorDevice->pid.output + ff;
-	if (command > MAX581x_MAX_VAL) command = MAX581x_MAX_VAL;
-	else if (command < -MAX581x_MAX_VAL) command = -MAX581x_MAX_VAL;
+	if (command > WHEEL_DAC_LIMIT) command = WHEEL_DAC_LIMIT;
+	else if (command < -WHEEL_DAC_LIMIT) command = -WHEEL_DAC_LIMIT;
 	motorDevice->cmdOutput = command; /* Signed DAC code actually applied (telemetry) */
 	Motor_SetVoltage(motorDevice, dacDevice, command);
 }
@@ -81,9 +81,9 @@ void Motor_SetBrake(Motor_Handler_t *motorDevice, uint8_t brake)
 
 void Motor_SetVoltage(Motor_Handler_t *motorDevice, MAX581x_Handler_t *dacDevice, float speed)
 {
-	/* PID + feedforward can exceed the DAC range; larger codes wrap around in MAX581x_CodeLoad */
-	if(speed > MAX581x_MAX_VAL) speed = MAX581x_MAX_VAL;
-	else if(speed < -MAX581x_MAX_VAL) speed = -MAX581x_MAX_VAL;
+	/* Hard current limit for every caller (PI, open loop, identification): see WHEEL_DAC_LIMIT */
+	if(speed > WHEEL_DAC_LIMIT) speed = WHEEL_DAC_LIMIT;
+	else if(speed < -WHEEL_DAC_LIMIT) speed = -WHEEL_DAC_LIMIT;
 
 	if(speed >= (float)0.0)
 	{

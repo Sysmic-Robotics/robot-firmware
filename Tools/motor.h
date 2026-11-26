@@ -79,6 +79,11 @@ enum {
 
 #define WHEEL_MAX_SPEED_RPS		15.0f
 #define WHEEL_MAX_SPEED_RAD		2.0f * M_PI * WHEEL_MAX_SPEED_RPS
+/* Hard limit of the wheel current command, applied to every DAC write (Motor_SetVoltage).
+   1 DAC code = 2.048 V / 4095 / 0.2733 ohm = 1.83 mA, so the L6235 minimum overcurrent
+   threshold (4.0 A, datasheet) is 2186 codes; the limit is 5 % below it. Above the
+   threshold the driver cuts and re-enables repeatedly and the motors sound rough. */
+#define WHEEL_DAC_LIMIT				2077.0f
 #define WHEEL_RADIO						0.02704f // without little wheels: 0.025f
 #define WHEEL_GEAR_RATIO			1.0f
 
