@@ -139,11 +139,12 @@ void DriveFunction(void const * argument)
     PID_Params_t pidParams;
     /* Wheel PI identified on the field (2026-11-23): Kp 12 / Ki 4.5 left under 6 deg of
        phase margin; Kp 33 / Ki 0.84 per sample gives about 10-25 deg. The PI output plus
-       the friction feedforward stays within +-2100 DAC codes (L6235 overcurrent ~2190). */
+       the friction feedforward stays within +-1800 DAC codes, 18 % below the L6235
+       overcurrent trip (~2190); at +-4095 the driver tripped and the motors sounded rough. */
     pidParams.Kp = 33.0f;
     pidParams.Ki = 0.84f;
     pidParams.Kd = 0.0f;
-    pidParams.outputMax = (float)(2100.0f - WHEEL_FF_CODES);
+    pidParams.outputMax = (float)(1800.0f - WHEEL_FF_CODES);
     pidParams.outputMin = -pidParams.outputMax;
     pidParams.integralMax = 1638.0f;
     pidParams.sampleTime = PID_SAMPLE_TIME / 1000.0f;
